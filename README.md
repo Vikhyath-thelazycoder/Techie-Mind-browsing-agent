@@ -4,14 +4,14 @@ Privacy-first autonomous browser agent for **SIH26171 — On-device Visual Perce
 
 > The model provides intelligence. The browser runtime provides authority. The privacy layer controls information. The action firewall controls execution. The verifier controls truth. The human remains the final authority.
 
-**Current status:** Phases 0–4 complete (Batch A: model routing + visual fallback) — see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
+**Current status:** Phases 0–6 complete (Batch A: model routing + visual fallback; Batch B: real workflows + 12 skills) — see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
 ## Quick start
 
 ```bash
 npm install
 npm run build        # Chrome + Firefox extension builds
-npm run verify       # current acceptance gates (Phase 3; `npm run verify:phase4` for vision)
+npm run verify       # current acceptance gates (Phase 6; `npm run verify:phase3` … `verify:phase5` for earlier ones)
 ```
 
 Load `apps/extension/dist/chrome` via `chrome://extensions` → *Load unpacked*.

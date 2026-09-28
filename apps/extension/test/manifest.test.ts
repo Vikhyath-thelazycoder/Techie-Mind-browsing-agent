@@ -38,10 +38,24 @@ describe('manifest generator', () => {
 
   it('requests only least-privilege permissions', () => {
     // scripting: on-demand injection into the agent's tab only (Phase 1).
-    const allowed = new Set(['storage', 'tabs', 'sidePanel', 'scripting']);
+    const allowed = new Set([
+      'storage',
+      'tabs',
+      'sidePanel',
+      'scripting',
+      'debugger',
+      'bookmarks',
+      'downloads',
+      'tabGroups',
+    ]);
     for (const m of [chrome, firefox]) {
       for (const p of m.permissions as string[]) expect(allowed.has(p), p).toBe(true);
     }
+  });
+
+  it('asks for debugger (trusted media clicks) on Chrome only', () => {
+    expect(chrome.permissions as string[]).toContain('debugger');
+    expect(firefox.permissions as string[]).not.toContain('debugger');
   });
 
   it('declares no content scripts (zero footprint in ordinary browsing) and one web host grant', () => {
@@ -49,7 +63,6 @@ describe('manifest generator', () => {
       expect(m).not.toHaveProperty('content_scripts');
       // <all_urls> is what captureVisibleTab requires (Phase 4 visual fallback); nothing broader.
       expect(m.host_permissions).toEqual(['<all_urls>']);
-      expect(m.permissions as string[]).not.toContain('debugger');
       expect(m.permissions as string[]).not.toContain('activeTab');
     }
   });

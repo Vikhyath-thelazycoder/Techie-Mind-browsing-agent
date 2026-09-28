@@ -1,6 +1,6 @@
 # Implementation Status
 
-**Status:** Phase 0 — Foundation: COMPLETE. Phase 1 — Real Browser Agent Core: COMPLETE (see [phases/PHASE_1_REPORT.md](phases/PHASE_1_REPORT.md)), including the Phase 1 correction (website resolution, current-tab awareness, task continuity — [phases/PHASE_1_CORRECTION_REPORT.md](phases/PHASE_1_CORRECTION_REPORT.md)). Phase 2 — Security + Privacy: COMPLETE (see [phases/PHASE_2_REPORT.md](phases/PHASE_2_REPORT.md)). Phase 3 — Model Routing and Phase 4 — Visual Perception: COMPLETE (Batch A, see [phases/BATCH_A_REPORT.md](phases/BATCH_A_REPORT.md)). Phases 5–10 not started.
+**Status:** Phase 0 — Foundation: COMPLETE. Phase 1 — Real Browser Agent Core: COMPLETE (see [phases/PHASE_1_REPORT.md](phases/PHASE_1_REPORT.md)), including the Phase 1 correction (website resolution, current-tab awareness, task continuity — [phases/PHASE_1_CORRECTION_REPORT.md](phases/PHASE_1_CORRECTION_REPORT.md)). Phase 2 — Security + Privacy: COMPLETE (see [phases/PHASE_2_REPORT.md](phases/PHASE_2_REPORT.md)). Phase 3 — Model Routing and Phase 4 — Visual Perception: COMPLETE (Batch A, see [phases/BATCH_A_REPORT.md](phases/BATCH_A_REPORT.md)). Phase 5 — Real Agent Workflows and Phase 6 — All 12 Skills: COMPLETE (Batch B, see [phases/BATCH_B_REPORT.md](phases/BATCH_B_REPORT.md)). Phases 7–10 not started.
 
 | Phase | Name | Status |
 |---|---|---|
@@ -9,8 +9,8 @@
 | 2 | Security + Privacy | **Complete** |
 | 3 | Model Routing | **Complete** (Batch A) |
 | 4 | Visual Perception | **Complete** (Batch A) |
-| 5 | Real Agent Workflows | Not started |
-| 6 | All 12 Skills | Not started |
+| 5 | Real Agent Workflows | **Complete** (Batch B; live milestone on the Mac) |
+| 6 | All 12 Skills | **Complete** (Batch B) |
 | 7 | Human Handover + Voice + Multilingual | Not started |
 | 8 | Persistent Monitoring | Not started |
 | 9 | Complete Techie Mind Product | Not started |
@@ -58,3 +58,11 @@
 - Extension — gated model transport, redacted tab capture (`capture.ts`), Laya settings, `<all_urls>` host access for capture
 - `scripts/laya/laya_adapter.py` + launchd plist; `npm run bench:models [-- --vision]`
 - Tests — 387 unit, 44 real-Chromium (43 pass here + 1 environment-only); gates 9/9 + 7/7
+
+## Batch B deliverables (Phase 5 + 6)
+
+- Perception — generic item/price extraction, main text and tables, element rectangles; native `SELECT` fix
+- Agent core — page commands (scroll, back/forward, cart, checkout, fill form, summarize, pick cheapest/costliest/top-rated), price constraints, task output, vault-token form filling, trusted media clicks, the agent's own back trail; 12-skill registry and executors
+- Privacy/security — encrypted profile (AES-GCM, non-extractable key), profile-value firewall rule, redacted output in history
+- Extension — Profile editor, output view in the result card, browser data (bookmarks, tab groups, read later, monitors, downloads), `debugger`/`bookmarks`/`downloads`/`tabGroups` permissions
+- Tests — unit + real-Chromium workflow and skill suites; gates Phase 5 and Phase 6

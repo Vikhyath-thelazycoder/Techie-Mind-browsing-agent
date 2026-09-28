@@ -76,6 +76,7 @@ export interface WebExtensionApi {
     create(props: { url: string; active?: boolean }): Promise<TabInfo>;
     update(tabId: number, props: { url?: string; active?: boolean }): Promise<TabInfo>;
     goBack(tabId: number): Promise<void>;
+    goForward?(tabId: number): Promise<void>;
     captureVisibleTab(
       windowId: number,
       options: { format: 'png' | 'jpeg'; quality?: number },
@@ -89,6 +90,16 @@ export interface WebExtensionApi {
   };
   action?: {
     onClicked: ExtensionEvent<() => void>;
+  };
+  /** Chrome only: trusted input for media clicks (Phase 5). */
+  debugger?: {
+    attach(target: { tabId: number }, version: string): Promise<void>;
+    detach(target: { tabId: number }): Promise<void>;
+    sendCommand(
+      target: { tabId: number },
+      method: string,
+      params?: Record<string, unknown>,
+    ): Promise<unknown>;
   };
   /** Chrome only. */
   sidePanel?: {

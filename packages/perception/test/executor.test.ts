@@ -214,3 +214,38 @@ describe('executor primitives', () => {
     });
   });
 });
+
+describe('executor — Phase 5 form values', () => {
+  it('SELECT sets a dropdown by option text or value (regression: it used to be a no-op)', () => {
+    const { ctx } = setup(
+      `<label>State <select id="st"><option value="">Select</option><option>Karnataka</option><option value="KL">Kerala</option></select></label>`,
+    );
+    const byText = executeAction(
+      actionFor(ctx, '#st', { type: 'SELECT', value: 'Karnataka' }),
+      ctx,
+    );
+    expect(byText.response).toMatchObject({ status: 'executed', valueAfter: 'Karnataka' });
+    const byValue = executeAction(actionFor(ctx, '#st', { type: 'SELECT', value: 'KL' }), ctx);
+    expect(byValue.response).toMatchObject({ status: 'executed', valueAfter: 'KL' });
+  });
+
+  it('TYPE with a vault token types only the value resolved for exactly that token', () => {
+    const { ctx } = setup(`<label>Email <input id="em" type="email"></label>`);
+    const action = actionFor(ctx, '#em', {
+      type: 'TYPE',
+      input: { vaultToken: 'EMAIL_001' },
+      submit: false,
+    });
+    expect(executeAction(action, ctx).response).toMatchObject({
+      status: 'rejected',
+      code: 'UNSUPPORTED_ACTION',
+    });
+    expect(
+      executeAction(action, ctx, { vaultToken: 'EMAIL_002', text: 'x@example.com' }).response,
+    ).toMatchObject({ status: 'rejected' });
+    expect(
+      executeAction(action, ctx, { vaultToken: 'EMAIL_001', text: 'asha.verma@example.com' })
+        .response,
+    ).toMatchObject({ status: 'executed', valueAfter: 'asha.verma@example.com' });
+  });
+});

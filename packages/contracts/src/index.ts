@@ -24,6 +24,7 @@ export * from './audit.js';
 export * from './messages.js';
 export * from './agent.js';
 export * from './fingerprint.js';
+export * from './profile.js';
 
 /**
  * Registry of every core contract required by master plan §9. Shared by the browser runtime and the

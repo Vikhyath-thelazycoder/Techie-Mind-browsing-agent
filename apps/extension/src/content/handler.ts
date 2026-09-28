@@ -2,7 +2,10 @@ import type { MessageSender } from '@techie-mind/browser';
 import { ContentRequest, type ContentResponse, type ErrorResponse } from '@techie-mind/contracts';
 import {
   DEFER_MS,
+  elementRect,
   executeAction,
+  extractItems,
+  extractMainText,
   observeDocument,
   probePage,
   type PageContext,
@@ -68,7 +71,40 @@ export function createContentHandler(
           deferred: null,
         };
       case 'EXECUTE':
-        return executeAction(request.action, ctx);
+        return executeAction(request.action, ctx, request.resolved);
+      case 'EXTRACT_ITEMS': {
+        const started = performance.now();
+        const items = extractItems(ctx.doc, ctx.registry);
+        return {
+          response: {
+            type: 'ITEMS_RESULT',
+            documentId: ctx.documentId,
+            items,
+            ms: performance.now() - started,
+          },
+          deferred: null,
+        };
+      }
+      case 'EXTRACT_TEXT': {
+        const started = performance.now();
+        const text = extractMainText(ctx.doc);
+        return {
+          response: {
+            type: 'TEXT_RESULT',
+            documentId: ctx.documentId,
+            ...text,
+            ms: performance.now() - started,
+          },
+          deferred: null,
+        };
+      }
+      case 'ELEMENT_RECT': {
+        const where = elementRect(ctx.registry.get(request.elementId));
+        return {
+          response: { type: 'ELEMENT_RECT_RESULT', documentId: ctx.documentId, ...where },
+          deferred: null,
+        };
+      }
       case 'PROBE':
         return { response: probePage(ctx, request.elementId), deferred: null };
       case 'PRIVACY_SCAN': {

@@ -160,3 +160,13 @@ export function parseLocation(raw: unknown, width: number, height: number): Visu
   if (!(x2 > x1 && y2 > y1) || !inside) return null;
   return parsed.data;
 }
+
+/** A summary answer: one JSON object with a bounded "summary" string and nothing else. */
+export function parseSummary(raw: unknown): string | null {
+  const o = asObject(raw);
+  if (!o || Object.keys(o).some((k) => k !== 'summary')) return null;
+  const text = o['summary'];
+  return typeof text === 'string' && text.trim().length > 0 && text.length <= 4000
+    ? text.trim()
+    : null;
+}

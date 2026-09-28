@@ -139,7 +139,11 @@ function runner() {
     report,
     '"I want to hear something by Arijit Singh": the model extracts the query from the user words',
   );
-  requireTest(report, 'Laya confirms a bare follow-up query');
+  requireTest(report, 'Laya confirms an unsure search reading');
+  requireTest(
+    report,
+    'a plain bare follow-up query is searched on the open site with no model call',
+  );
   requireTest(report, 'real task ids, real ModelRequests, real gate');
   console.log(
     'runner: model-routed follow-ups complete with verified steps, tier records and latency',

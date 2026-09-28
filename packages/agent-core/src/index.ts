@@ -10,3 +10,5 @@ export type * from './host.js';
 export * from './runner.js';
 export * from './escalate.js';
 export * from './vision.js';
+export * from './skills.js';
+export * from './forms.js';

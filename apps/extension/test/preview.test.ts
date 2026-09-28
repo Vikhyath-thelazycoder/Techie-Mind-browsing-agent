@@ -37,6 +37,13 @@ describe('plan preview', () => {
   });
 
   it('still explains requests nothing can do', () => {
-    expect(previewPlan('scroll down', FLIPKART).problem).toMatch(/can't .* yet/);
+    expect(previewPlan('refresh the page', FLIPKART).problem).toMatch(/can't .* yet/);
+  });
+
+  it('previews Phase 5 page commands as real steps on the open page', () => {
+    const p = previewPlan('scroll down', FLIPKART);
+    expect(p.problem).toBeNull();
+    expect(p.steps.join(' | ')).toMatch(/Scroll down/);
+    expect(previewPlan('open the cheapest one', FLIPKART).steps.join(' | ')).toMatch(/cheapest/);
   });
 });

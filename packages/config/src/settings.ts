@@ -73,6 +73,12 @@ export const AgentSettings = z.strictObject({
   /** Payment/OTP/bank authorization always hands over to the human (spec §24). Cannot be disabled. */
   financialSafety: z.literal(true),
   humanHandover: z.literal(true),
+  /**
+   * Open media results with a trusted browser click (chrome.debugger Input events) so playback can
+   * start with sound past the autoplay block. Chrome shows a "debugging this browser" bar while it
+   * runs. Off = the agent opens the result and asks you to press Play.
+   */
+  trustedMediaClicks: z.boolean(),
   domainAllowlist: z.array(Domain).max(500),
   domainBlocklist: z.array(Domain).max(500),
 });
@@ -154,6 +160,7 @@ export const DEFAULT_SETTINGS: Settings = {
     confirmAtRisk: 'HIGH',
     financialSafety: true,
     humanHandover: true,
+    trustedMediaClicks: true,
     domainAllowlist: [],
     domainBlocklist: [],
   },

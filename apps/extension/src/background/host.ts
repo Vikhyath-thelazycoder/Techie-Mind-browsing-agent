@@ -1,14 +1,19 @@
-import type { AgentHost, TabContext, VisualCapture } from '@techie-mind/agent-core';
+import type { AgentHost, BrowserData, TabContext, VisualCapture } from '@techie-mind/agent-core';
 import type { BrowserAdapter } from '@techie-mind/browser';
 import { gatedFetch, OutboundPrivacyGate, PrivacyGateError } from '@techie-mind/privacy';
-import { redactCapture } from './capture.js';
+import { loadProfile } from '../shared/profile-store.js';
+import { redactCapture, type CaptureMark } from './capture.js';
 import {
   ContentPong,
   ErrorResponse,
   ExecuteResponse,
   ObserveResponse,
+  ElementRectResponse,
+  ExtractItemsResponse,
+  ExtractTextResponse,
   PrivacyRegionsResponse,
   PrivacyScanResponse,
+  type UserProfile,
   ProbeResponse,
   WebsiteProbe,
   type Action,
@@ -162,7 +167,11 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Pr
 export class ExtensionHost implements AgentHost {
   #agentTab: number | null = null;
 
-  constructor(private readonly adapter: BrowserAdapter) {}
+  constructor(
+    private readonly adapter: BrowserAdapter,
+    /** Phase 6: bookmarks, tabs, read-later, monitors, downloads (absent in unit tests). */
+    readonly browserData?: BrowserData,
+  ) {}
 
   /**
    * The web tab in front of the user; when the active tab is not a web page (e.g. the extension's
@@ -284,21 +293,26 @@ export class ExtensionHost implements AgentHost {
       if (error instanceof Error && /error page/i.test(error.message)) return null;
       throw error;
     }
-    return ProbeResponse.parse(await this.#send(tabId, { type: 'PROBE', elementId }));
+    const probe = ProbeResponse.parse(await this.#send(tabId, { type: 'PROBE', elementId }));
+    this.#see(tabId, probe.url);
+    return probe;
   }
 
   /**
    * Level 4 capture: sensitive regions are located inside the page (geometry only), the visible tab
    * is captured and painted over locally — see capture.ts. Null when the tab is not visible.
    */
-  async captureVisible(tabId: number, options: { people: boolean }): Promise<VisualCapture | null> {
+  async captureVisible(
+    tabId: number,
+    options: { people: boolean; marks?: CaptureMark[] },
+  ): Promise<VisualCapture | null> {
     await this.#ensureContent(tabId);
     const regions = PrivacyRegionsResponse.parse(
       await this.#send(tabId, { type: 'PRIVACY_REGIONS', people: options.people }),
     );
     const shot = await this.adapter.captureTab(tabId);
     if (!shot) return null;
-    return redactCapture(shot, regions);
+    return redactCapture(shot, regions, undefined, options.marks ?? []);
   }
 
   async scanPage(tabId: number): Promise<PrivacyScanResponse | null> {
@@ -321,7 +335,11 @@ export class ExtensionHost implements AgentHost {
     return reply.observation;
   }
 
-  async execute(tabId: number, action: Action): Promise<ExecuteResponse> {
+  async execute(
+    tabId: number,
+    action: Action,
+    resolved?: { vaultToken: string; text: string },
+  ): Promise<ExecuteResponse> {
     if (action.binding.tabId !== tabId) {
       // Cross-tab safety (spec §70): an action bound to another tab never runs here.
       return {
@@ -336,7 +354,56 @@ export class ExtensionHost implements AgentHost {
       };
     }
     await this.#ensureContent(tabId);
-    return ExecuteResponse.parse(await this.#send(tabId, { type: 'EXECUTE', action }));
+    return ExecuteResponse.parse(
+      await this.#send(tabId, { type: 'EXECUTE', action, ...(resolved ? { resolved } : {}) }),
+    );
+  }
+
+  async extractItems(tabId: number): Promise<ExtractItemsResponse | null> {
+    await this.#ensureContent(tabId);
+    return ExtractItemsResponse.parse(await this.#send(tabId, { type: 'EXTRACT_ITEMS' }));
+  }
+
+  async extractText(tabId: number): Promise<ExtractTextResponse | null> {
+    await this.#ensureContent(tabId);
+    return ExtractTextResponse.parse(await this.#send(tabId, { type: 'EXTRACT_TEXT' }));
+  }
+
+  /** Trusted click at the centre of a bound element (the firewall already authorized the CLICK). */
+  async trustedClick(tabId: number, elementId: string): Promise<boolean> {
+    await this.#ensureContent(tabId);
+    const where = ElementRectResponse.parse(
+      await this.#send(tabId, { type: 'ELEMENT_RECT', elementId }),
+    );
+    if (!where.visible || !where.rect) return false;
+    const { x, y, width, height } = where.rect;
+    return this.adapter.trustedClickAt(tabId, x + width / 2, y + height / 2);
+  }
+
+  /** Pages the agent saw in each tab (in memory only; for "go back" when Chrome's list skips them). */
+  readonly #trail = new Map<number, string[]>();
+
+  #see(tabId: number, url: string) {
+    const trail = this.#trail.get(tabId) ?? [];
+    if (trail.at(-1) !== url) {
+      if (trail.at(-2) === url)
+        trail.pop(); // went back to it
+      else trail.push(url);
+    }
+    this.#trail.set(tabId, trail.slice(-20));
+  }
+
+  async previousUrl(tabId: number): Promise<string | null> {
+    const trail = this.#trail.get(tabId) ?? [];
+    return trail.length >= 2 ? trail[trail.length - 2]! : null;
+  }
+
+  async goForward(tabId: number): Promise<void> {
+    await this.adapter.goForward(tabId);
+  }
+
+  async loadProfile(): Promise<UserProfile | null> {
+    return loadProfile(this.adapter);
   }
 
   /**

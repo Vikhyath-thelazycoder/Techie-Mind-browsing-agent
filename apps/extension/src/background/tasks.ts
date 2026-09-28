@@ -158,7 +158,33 @@ export function redactResult(result: TaskResult): TaskResult {
     navigation: result.navigation
       ? { ...result.navigation, reason: redactForLog(result.navigation.reason) }
       : null,
+    output: redactOutput(result.output),
   });
+}
+
+/** Page-derived output (titles, summaries) is redacted; URLs keep origin + path only. */
+function redactOutput(output: TaskResult['output']): TaskResult['output'] {
+  if (!output) return null;
+  switch (output.kind) {
+    case 'text':
+      return { ...output, title: redactForLog(output.title), text: redactForLog(output.text) };
+    case 'list':
+      return {
+        ...output,
+        title: redactForLog(output.title),
+        entries: output.entries.map(redactForLog),
+      };
+    case 'items':
+      return {
+        ...output,
+        title: redactForLog(output.title),
+        items: output.items.map((i) => ({
+          ...i,
+          title: redactForLog(i.title),
+          url: i.url ? safeUrl(i.url) || null : null,
+        })),
+      };
+  }
 }
 
 export async function readHistory(adapter: BrowserAdapter): Promise<TaskResult[]> {

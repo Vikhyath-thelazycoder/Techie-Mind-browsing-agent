@@ -27,7 +27,8 @@ export const EXTENSION_PAGES_CSP = "script-src 'self'; object-src 'self'; base-u
  * Least privilege. `scripting` + http(s) host access let the background inject the content script
  * ON DEMAND into the one tab the agent is working in (Phase 1); nothing runs in ordinary browsing.
  */
-const COMMON_PERMISSIONS = ['storage', 'tabs', 'scripting'] as const;
+// bookmarks + downloads: the manage-bookmarks, save-page, extract-data and walkthrough skills (Phase 6).
+const COMMON_PERMISSIONS = ['storage', 'tabs', 'scripting', 'bookmarks', 'downloads'] as const;
 /**
  * `<all_urls>` rather than http/https patterns: Chrome and Firefox allow `tabs.captureVisibleTab`
  * (the Phase 4 visual fallback) only with it. The agent still scripts http(s) pages only — every
@@ -56,7 +57,10 @@ export function buildManifest(target: Target, version: string): Record<string, u
     return {
       ...common,
       minimum_chrome_version: '116',
-      permissions: [...COMMON_PERMISSIONS, 'sidePanel'],
+      // debugger: trusted clicks for media (Phase 5, setting "trustedMediaClicks"); attached only for
+      // the click itself, Chrome shows its "debugging this browser" bar while attached.
+      // tabGroups: the organize-tabs skill groups tabs by site (Chrome only).
+      permissions: [...COMMON_PERMISSIONS, 'sidePanel', 'debugger', 'tabGroups'],
       background: { service_worker: PATHS.background, type: 'module' },
       side_panel: { default_path: PATHS.sidePanel },
       options_page: PATHS.settings,

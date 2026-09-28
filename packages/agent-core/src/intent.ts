@@ -1,6 +1,13 @@
-import { Domain, IntentProfile, type Constraint, type Language } from '@techie-mind/contracts';
+import {
+  Domain,
+  IntentProfile,
+  type Constraint,
+  type Language,
+  type SkillId,
+} from '@techie-mind/contracts';
 import { KNOWN_SITES, siteForDomain, type SiteEntry } from './sites.js';
 import { escapeRegExp, normalize } from './text.js';
+import { detectSkill, SKILL_ARG_ENTITY, SKILL_ENTITY } from './skills.js';
 
 /**
  * Tier-0 deterministic intent resolver (spec §7–8, §18). No model is called.
@@ -659,7 +666,7 @@ const LEAD_FILLER_RE =
  * they are refused with a clear message — never typed into a search engine.
  */
 const UNSUPPORTED_RE =
-  /^(scroll(?:\s+(?:up|down|to\s+\S+))?|go\s+(?:back|forward)|go\s+to\s+(?:the\s+)?(?:next|previous)\s+page|(?:next|previous)\s+page|refresh|reload|add\b.*\b(?:cart|basket|bag|wishlist)|remove\b.*\b(?:cart|basket|bag|wishlist)|sort(?:\s+by)?|filter|show\s+(?:cheaper|costlier|more\s+expensive|less\s+expensive|more|fewer|less|the\s+cheapest)|close(?:\s+(?:this|the))?|zoom(?:\s+(?:in|out))?|log\s?in|sign\s?in|log\s?out|sign\s?out|bookmark|download|print|pause|mute|unmute)(?![\p{L}\p{N}])/u;
+  /^(scroll(?:\s+to\s+\S+)?|go\s+to\s+(?:the\s+)?next\s+page|next\s+page|refresh|reload|add\b.*\b(?:wishlist)|remove\b.*\b(?:cart|basket|bag|wishlist)|sort(?:\s+by)?|filter|show\s+(?:cheaper|costlier|more\s+expensive|less\s+expensive|more|fewer|less)|close(?:\s+(?:this|the))?|zoom(?:\s+(?:in|out))?|log\s?in|sign\s?in|log\s?out|sign\s?out|bookmark|download|print|pause|mute|unmute)(?![\p{L}\p{N}])/u;
 
 function unsupportedIntent(original: string, command: string): ResolvedIntent {
   const profile = IntentProfile.parse({
@@ -681,6 +688,132 @@ function unsupportedIntent(original: string, command: string): ResolvedIntent {
     ordinal: null,
   });
   return { profile, siteId: null };
+}
+
+/** Entity carrying a page command's parameter (scroll direction, which item to pick). */
+export const COMMAND_ENTITY = 'command';
+
+/**
+ * Page commands the agent performs on the open page (Phase 5). Matched on the whole request after
+ * conversational openers are removed; each maps to one generic goal — never to a site script.
+ */
+const PAGE_COMMANDS: Array<{ re: RegExp; action: string; param: (m: RegExpExecArray) => string }> =
+  [
+    {
+      re: /^scroll(?:\s+(?:the\s+page\s+)?(up|down))?(?:\s+(?:a\s+(?:bit|little)|more|further|again|please))*$/u,
+      action: 'scroll',
+      param: (m) => m[1] ?? 'down',
+    },
+    {
+      re: /^(?:go\s+)?back(?:\s+(?:to\s+(?:the\s+)?(?:previous|last)\s+page|please))?$|^(?:go\s+to\s+)?(?:the\s+)?previous\s+page$/u,
+      action: 'go_back',
+      param: () => 'back',
+    },
+    { re: /^go\s+forward$/u, action: 'go_forward', param: () => 'forward' },
+    {
+      re: /^(?:add|put)\b(?:\s+(?:it|this|that|the\s+item|this\s+item|this\s+product|one))?\s+(?:to|in|into)\s+(?:the\s+|my\s+)?(?:cart|basket|bag)$/u,
+      action: 'add_to_cart',
+      param: () => 'cart',
+    },
+    {
+      re: /^(?:(?:go|proceed|continue)\s+to\s+|open\s+)(?:the\s+|my\s+)?(?:check\s?out|cart|basket|bag)$|^check\s?out$/u,
+      action: 'checkout',
+      param: (m) => (/check\s?out/.test(m[0]) ? 'checkout' : 'cart'),
+    },
+    {
+      re: /^(?:auto\s?fill|fill\s+(?:in|out|up)?)\b.*$|^(?:complete|fill)\s+(?:this|the)\s+form\b.*$/u,
+      action: 'fill_form',
+      param: () => 'profile',
+    },
+    {
+      re: /^(?:summari[sz]e|sum\s+up|give\s+(?:me\s+)?(?:a\s+)?(?:short\s+)?summary|tl;?\s?dr|what(?:\s+is|'s|’s|s)\s+(?:this|the)\s+(?:page|article)\s+about)\b.*$/u,
+      action: 'summarize',
+      param: () => 'page',
+    },
+  ];
+
+/** "the cheapest one", "open the top rated phone", "show me the most expensive" → pick by value. */
+const PICK_RE =
+  /(?:^|\s)(?:the\s+)?(cheapest|lowest[- ]priced|least\s+expensive|costliest|most\s+expensive|highest[- ]priced|top[- ]rated|best[- ]rated|highest[- ]rated)(?![\p{L}\p{N}])/u;
+const SEARCH_VERB_RE = /(?:^|\s)(?:search|find|look\s+(?:for|up)|lookup|browse)(?![\p{L}\p{N}])/u;
+
+function pickOf(word: string): 'cheapest' | 'costliest' | 'top-rated' {
+  if (/cheapest|lowest|least/.test(word)) return 'cheapest';
+  if (/rated/.test(word)) return 'top-rated';
+  return 'costliest';
+}
+
+function commandIntent(
+  original: string,
+  action: string,
+  param: string,
+  intent: IntentProfile['intent'] = 'navigate',
+): ResolvedIntent {
+  const profile = IntentProfile.parse({
+    intent,
+    targetDomain: null,
+    directNavigation: false,
+    action,
+    query: null,
+    constraints: [],
+    entities: [{ type: COMMAND_ENTITY, value: param }],
+    language: detectLanguage(original),
+    riskLevel: action === 'add_to_cart' || action === 'checkout' ? 'MEDIUM' : 'LOW',
+    requiresConfirmation: false,
+    confidence: 0.9,
+    resolvedBy: 'deterministic',
+    targetSource: 'CURRENT_PAGE',
+    navigationPolicy: 'REUSE_CURRENT_CONTEXT',
+    siteName: null,
+    ordinal: null,
+  });
+  return { profile, siteId: null };
+}
+
+const SKILL_INTENT: Record<SkillId, IntentProfile['intent']> = {
+  'summarize-page': 'summarize',
+  'deep-research': 'research',
+  'extract-data': 'extract',
+  'compare-prices': 'compare_prices',
+  'fill-form': 'form_fill',
+  'find-alternatives': 'find_alternatives',
+  'manage-bookmarks': 'bookmarks',
+  'monitor-page': 'monitor',
+  'organize-tabs': 'tab_management',
+  'read-later': 'read_later',
+  'save-page': 'save_page',
+  'screenshot-walkthrough': 'screenshot_walkthrough',
+};
+
+function skillIntent(original: string, id: SkillId, arg: string): ResolvedIntent {
+  const { constraints } = extractConstraints(arg.toLowerCase());
+  const profile = IntentProfile.parse({
+    intent: SKILL_INTENT[id],
+    targetDomain: null,
+    directNavigation: false,
+    action: 'skill',
+    query: null,
+    constraints,
+    entities: [
+      { type: SKILL_ENTITY, value: id },
+      { type: SKILL_ARG_ENTITY, value: arg.slice(0, 256) },
+    ],
+    language: detectLanguage(original),
+    riskLevel: 'LOW',
+    requiresConfirmation: false,
+    confidence: 0.9,
+    resolvedBy: 'deterministic',
+    targetSource: 'CURRENT_PAGE',
+    navigationPolicy: 'REUSE_CURRENT_CONTEXT',
+    siteName: null,
+    ordinal: null,
+  });
+  return { profile, siteId: null };
+}
+
+/** Constraints and the text without them, e.g. "laptops under ₹50,000" (used by skills). */
+export function constraintsOf(text: string): { constraints: Constraint[]; rest: string } {
+  return extractConstraints(normalize(text));
 }
 
 /** Entity type marking a request that points at something on the page code cannot pick alone. */
@@ -746,6 +879,32 @@ export function resolveIntent(request: string): ResolvedIntent {
   const context = stripContext(normalize(original).replace(POLITE_RE, ' '));
   const explicitContext = context.found;
   const opened = squash(context.text.replace(LEAD_FILLER_RE, ''));
+  const bare = opened.replace(/[.!?]+$/u, '').trim();
+  // Commands are also matched before "this page"/"here" is stripped ("what is this page about").
+  const unstripped = squash(normalize(original).replace(POLITE_RE, ' '))
+    .replace(LEAD_FILLER_RE, '')
+    .replace(/[.!?]+$/u, '')
+    .trim();
+  const skill = detectSkill(unstripped) ?? detectSkill(bare);
+  if (skill) return skillIntent(original, skill.id, skill.arg);
+  for (const command of PAGE_COMMANDS) {
+    const m = command.re.exec(bare) ?? command.re.exec(unstripped);
+    if (m) {
+      const kind =
+        command.action === 'add_to_cart' || command.action === 'checkout'
+          ? 'shopping'
+          : command.action === 'fill_form'
+            ? 'form_fill'
+            : command.action === 'summarize'
+              ? 'summarize'
+              : 'navigate';
+      return commandIntent(original, command.action, command.param(m), kind);
+    }
+  }
+  const pick = PICK_RE.exec(bare);
+  if (pick && !SEARCH_VERB_RE.test(` ${bare}`) && !findSiteMention(bare)) {
+    return commandIntent(original, 'pick_item', pickOf(pick[1]!), 'shopping');
+  }
   const unsupported = UNSUPPORTED_RE.exec(opened);
   if (unsupported) return unsupportedIntent(original, unsupported[1] ?? unsupported[0]);
   const { main: text, followUp } = splitFollowUp(opened);

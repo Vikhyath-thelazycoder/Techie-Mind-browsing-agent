@@ -17,6 +17,7 @@ import {
   parseClassification,
   parseInterpretation,
   parseLocation,
+  parseSummary,
   whyInvalid,
 } from './parse.js';
 import {
@@ -26,6 +27,8 @@ import {
   LOCATE_SCHEMA,
   LOCATE_SYSTEM,
   locateMessage,
+  SUMMARIZE_SCHEMA,
+  SUMMARIZE_SYSTEM,
 } from './prompts.js';
 import { describePage, summarizeForModel } from './summary.js';
 import { TransportError, type ModelTransport } from './transport.js';
@@ -92,6 +95,18 @@ export interface Intelligence {
    * vision-capable model is used; a gateway never receives screenshots.
    */
   locate?(input: LocateInput): Promise<TierAnswer<VisualLocation>>;
+  /**
+   * Phase 5 — summarize a page from its redacted text blocks (carried as a SanitizedObservation).
+   * Local model only: page text never goes to a remote gateway for a summary.
+   */
+  summarize?(input: SummarizeInput): Promise<TierAnswer<string>>;
+}
+
+export interface SummarizeInput {
+  taskId: string;
+  intent: IntentProfile;
+  /** Headings and paragraphs, already redacted with the task vault, as sanitized nodes. */
+  page: SanitizedObservation;
 }
 
 export interface IntelligenceDeps {
@@ -321,6 +336,72 @@ export function createIntelligence(deps: IntelligenceDeps): Intelligence {
             value.kind === 'abstain'
               ? value.reason
               : `${value.kind} ${value.confidence.toFixed(2)}`,
+          ),
+          value,
+        };
+      } catch (error) {
+        const { outcome, reason } = outcomeOf(error);
+        return {
+          usage: usage(tier, modelId, 'plan-action', outcome, started, reason),
+          value: null,
+        };
+      }
+    },
+
+    async summarize(input) {
+      const started = clock();
+      const modelId = active.modelId;
+      if (!active.local) {
+        return {
+          usage: usage(
+            tier,
+            modelId,
+            'plan-action',
+            'unavailable',
+            started,
+            'summaries run only on the local model',
+          ),
+          value: null,
+        };
+      }
+      const check = await checkActive();
+      if (!check.ok) {
+        return {
+          usage: usage(tier, modelId, 'plan-action', 'unavailable', started, check.reason),
+          value: null,
+        };
+      }
+      try {
+        const req = request(
+          input.taskId,
+          tier,
+          modelId,
+          'summarize',
+          'summarize this page',
+          input.intent,
+          input.page,
+        );
+        const text = input.page.nodes
+          .map((n) => `${n.role === 'heading' ? '## ' : ''}${n.text ?? n.name ?? ''}`)
+          .join('\n')
+          .slice(0, 12_000);
+        const content = await ollamaChat(deps.transport, active.endpoint!, {
+          request: req,
+          model: modelId,
+          system: SUMMARIZE_SYSTEM,
+          user: `Page: ${input.page.origin}${input.page.path}\nTitle: ${input.page.title}\n\n${text}`,
+          schema: SUMMARIZE_SCHEMA,
+          timeoutMs: MODEL_TIMEOUT_MS,
+        });
+        const value = parseSummary(content);
+        return {
+          usage: usage(
+            tier,
+            modelId,
+            'plan-action',
+            value ? 'answered' : 'invalid',
+            started,
+            value ? 'summary' : 'not a summary',
           ),
           value,
         };

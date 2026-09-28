@@ -48,13 +48,31 @@ function lazy() {
   requireTest(report, 'a page code can ground makes 0 vision calls and 0 captures');
   requireTest(report, 'a text-only page where nothing matches never triggers vision');
   requireTest(report, 'no vision tier or no capture: hand over exactly as before');
-  // Static: the capture path is reached only through #visualGround, which checks visionWorthTrying.
+  // Static: captures happen in exactly two places — the gated vision fallback (#visualGround) and
+  // the screenshot-walkthrough skill the user asks for explicitly (Phase 6). The vision model is
+  // called only in #visualGround.
   const runner = readFileSync(join(ROOT, 'packages/agent-core/src/runner.ts'), 'utf8');
+  const body = (name) => {
+    const start = runner.indexOf(`async ${name}(`);
+    assert(start >= 0, `${name} missing`);
+    const next = runner.indexOf('\n  async #', start + 10);
+    return runner.slice(start, next < 0 ? undefined : next);
+  };
   const calls =
     runner.match(/captureVisible\?\.\(|captureVisible\?\.bind|\.captureVisible\(/g) ?? [];
   assert(
-    calls.length === 1,
-    `captureVisible referenced ${calls.length}× in the runner (expected once)`,
+    calls.length === 2,
+    `captureVisible referenced ${calls.length}× in the runner (expected 2)`,
+  );
+  assert(
+    /captureVisible\?\.bind/.test(body('#visualGround')),
+    'vision capture outside #visualGround',
+  );
+  assert(/captureVisible\?\.bind/.test(body('#skillWalkthrough')), 'unexpected capture site');
+  const locates = runner.match(/\.locate\?\.bind|\.locate\(/g) ?? [];
+  assert(
+    locates.length === 1 && /locate\?\.bind/.test(body('#visualGround')),
+    'vision model called outside #visualGround',
   );
   assert(
     /if \(!locate \|\| !capture \|\| !visionWorthTrying\(obs\)\) return null;/.test(runner),
@@ -78,7 +96,7 @@ function privacy() {
   );
   const host = readFileSync(join(ROOT, 'apps/extension/src/background/host.ts'), 'utf8');
   assert(
-    /PRIVACY_REGIONS/.test(host) && /redactCapture\(shot, regions\)/.test(host),
+    /PRIVACY_REGIONS/.test(host) && /redactCapture\(shot, regions[,)]/.test(host),
     'host does not redact before returning',
   );
   assert(!/return shot\b|image: shot/.test(host), 'raw capture escapes the host');

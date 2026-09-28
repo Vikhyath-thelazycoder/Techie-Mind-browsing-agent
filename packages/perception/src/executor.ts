@@ -91,6 +91,10 @@ function setValue(el: Element, value: string): void {
       el.localName === 'input' ? win.HTMLInputElement.prototype : win.HTMLTextAreaElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
     setter?.call(el, value);
+  } else if (el.localName === 'select') {
+    // Native setter (as for inputs) so framework-controlled selects observe the change.
+    const setter = Object.getOwnPropertyDescriptor(win.HTMLSelectElement.prototype, 'value')?.set;
+    setter?.call(el, value);
   } else if ((el as HTMLElement).isContentEditable) {
     el.textContent = value;
   }
@@ -159,7 +163,11 @@ function pointerSequence(el: Element): void {
 /** Delay before a deferred action fires, so the highlight is visible first. */
 export const DEFER_MS = 150;
 
-export function executeAction(action: Action, ctx: PageContext): Execution {
+export function executeAction(
+  action: Action,
+  ctx: PageContext,
+  resolved?: { vaultToken: string; text: string },
+): Execution {
   const { binding, args } = action;
   if (binding.documentId !== ctx.documentId) {
     return reject(ctx, action, 'DOCUMENT_MISMATCH', 'action was planned for a different document');
@@ -224,13 +232,15 @@ export function executeAction(action: Action, ctx: PageContext): Execution {
     case 'TYPE': {
       if (!el || !isEditable(el, computeRole(el)))
         return reject(ctx, action, 'TARGET_NOT_EDITABLE', 'element does not accept text');
-      if (!('text' in args.input)) {
-        return reject(
-          ctx,
-          action,
-          'UNSUPPORTED_ACTION',
-          'vault-token input is resolved by the privacy vault (Phase 2)',
-        );
+      // A vault token is typed only with the value the background resolved for exactly that token.
+      const text =
+        'text' in args.input
+          ? args.input.text
+          : resolved && resolved.vaultToken === args.input.vaultToken
+            ? resolved.text
+            : null;
+      if (text === null) {
+        return reject(ctx, action, 'UNSUPPORTED_ACTION', 'vault token was not resolved');
       }
       ctx.overlay?.show(el, 'Typing');
       el.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -247,7 +257,7 @@ export function executeAction(action: Action, ctx: PageContext): Execution {
           deferred: null,
         };
       }
-      setValue(el, args.input.text);
+      setValue(el, text);
       const valueAfter = currentValue(el);
       const target = el;
       return {
@@ -256,7 +266,7 @@ export function executeAction(action: Action, ctx: PageContext): Execution {
           action,
           'executed',
           null,
-          `typed ${args.input.text.length} characters${args.submit ? ', submitting' : ''}`,
+          `typed ${text.length} characters${args.submit ? ', submitting' : ''}`,
           valueAfter,
           args.submit,
         ),

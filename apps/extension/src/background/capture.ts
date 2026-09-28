@@ -31,10 +31,17 @@ function toBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+export interface CaptureMark {
+  /** Page CSS pixels (DOMNode.bbox space). */
+  box: { x: number; y: number; width: number; height: number };
+  label: string;
+}
+
 export async function redactCapture(
   dataUrl: string,
   regions: PrivacyRegionsResponse,
   now: () => number = () => performance.now(),
+  marks: readonly CaptureMark[] = [],
 ): Promise<VisualCapture> {
   const started = now();
   const { viewport } = regions;
@@ -55,6 +62,23 @@ export async function redactCapture(
       Math.ceil((box.width + PAD * 2) * scale),
       Math.ceil((box.height + PAD * 2) * scale),
     );
+  }
+  // Walkthrough marks are drawn AFTER redaction, so a mark never uncovers anything.
+  ctx.lineWidth = 3;
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const { box, label } of marks) {
+    const x = (box.x - viewport.scrollX) * scale;
+    const y = (box.y - viewport.scrollY) * scale;
+    ctx.strokeStyle = '#d64133';
+    ctx.strokeRect(x, y, box.width * scale, box.height * scale);
+    ctx.fillStyle = '#d64133';
+    ctx.beginPath();
+    ctx.arc(x, y, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label.slice(0, 3), x, y + 1);
   }
   const png = await canvas.convertToBlob({ type: 'image/png' });
   return {

@@ -297,7 +297,7 @@ describe('model routing — authority stays local', () => {
       confidence: 0.95,
       reason: 'x',
     });
-    const { result } = await run(site, 'the cheapest one please', ai);
+    const { result } = await run(site, 'the good one please', ai);
     expect(result.error?.code).toBe('NEEDS_CLARIFICATION');
     expect(site.executed.filter((a) => a.args.type === 'TYPE')).toHaveLength(0);
     expect(result.models.at(-1)).toMatchObject({
@@ -365,7 +365,7 @@ describe('model routing — authority stays local', () => {
       confidence: 0.95,
       reason: 'x',
     });
-    const { result } = await run(site, 'open the cheapest one', ai);
+    const { result } = await run(site, 'open the premium one', ai);
     expect(result.status).toBe('HUMAN_REQUIRED');
     expect(result.error?.message).toMatch(/authorize a payment/);
     expect(site.url).not.toContain('/checkout');

@@ -118,7 +118,7 @@ describe('intent: context-aware fields (targetSource / navigationPolicy)', () =>
   });
 
   it('refuses "open" requests whose object is not a website instead of web-searching them', () => {
-    for (const text of ['open a new tab', 'open my cart', 'open settings']) {
+    for (const text of ['open a new tab', 'open settings']) {
       expect(resolveIntent(text).profile.intent, text).toBe('unknown');
     }
   });
@@ -307,20 +307,44 @@ describe('user-reported follow-ups (real Chrome)', () => {
   });
 
   it('B2: browser commands the agent cannot do yet are refused honestly, never web-searched', () => {
-    for (const text of [
-      'scroll down',
-      'go back',
-      'add it to cart',
-      'refresh the page',
-      'show cheaper ones',
-      'sort by price',
-    ]) {
+    // Scroll, back and add-to-cart became real commands in Phase 5 (tested below); these remain
+    // unsupported and are still refused honestly.
+    for (const text of ['refresh the page', 'show cheaper ones', 'sort by price', 'zoom in']) {
       const { profile, decision } = decide(text, RESULTS, SEARCHABLE);
       expect(profile.intent, text).toBe('unknown');
       expect(profile.query, text).toBeNull();
       expect(decision, text).toMatchObject({ ok: false, code: 'UNSUPPORTED_COMMAND' });
       expect(decision.ok ? '' : decision.message, text).toMatch(/can't .* yet/i);
     }
+  });
+
+  it('Phase 5: page commands are actions on the open page, never web searches', () => {
+    const cases: Array<[string, string, string]> = [
+      ['scroll down', 'scroll', 'down'],
+      ['now scroll up a bit', 'scroll', 'up'],
+      ['go back', 'go_back', 'back'],
+      ['go forward', 'go_forward', 'forward'],
+      ['add it to cart', 'add_to_cart', 'cart'],
+      ['open my cart', 'checkout', 'cart'],
+      ['proceed to checkout', 'checkout', 'checkout'],
+      ['fill this form using my saved profile', 'fill_form', 'profile'],
+      ['fill my delivery address', 'fill_form', 'profile'],
+      ['summarize this page', 'summarize', 'page'],
+      ['what is this page about?', 'summarize', 'page'],
+      ['open the cheapest one', 'pick_item', 'cheapest'],
+      ['the cheapest one please', 'pick_item', 'cheapest'],
+      ['show me the most expensive', 'pick_item', 'costliest'],
+      ['click the top rated one', 'pick_item', 'top-rated'],
+    ];
+    for (const [text, action, param] of cases) {
+      const { profile } = decide(text, RESULTS, SEARCHABLE);
+      expect(profile.action, text).toBe(action);
+      expect(profile.query, text).toBeNull();
+      expect(profile.entities, text).toContainEqual({ type: 'command', value: param });
+      expect(profile.confidence, text).toBeGreaterThanOrEqual(0.8);
+    }
+    // A superlative inside a search stays a search.
+    expect(resolveIntent('find the cheapest laptop on amazon').profile.action).toBe('search');
   });
 
   it('B3: "Open Flipkart iPhone" opens Flipkart and searches the rest', () => {

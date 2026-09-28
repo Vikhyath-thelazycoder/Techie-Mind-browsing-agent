@@ -761,3 +761,44 @@
   padding: 3px 10px;
   color: var(--tm-text-muted);
 }
+
+/* Task output (Phase 5/6): extracted items, summaries, lists */
+.tm-output {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius-sm);
+  background: var(--tm-surface);
+}
+
+.tm-output-text {
+  margin: 0;
+  white-space: pre-line;
+  line-height: 1.45;
+}
+
+.tm-output-items,
+.tm-output-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tm-output-items li {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.tm-output-items li span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
