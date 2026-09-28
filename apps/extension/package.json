@@ -1,0 +1,29 @@
+{
+  "name": "@techie-mind/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Techie Mind browser extension (Chrome MV3 + Firefox).",
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/build.ts",
+    "build:chrome": "tsx scripts/build.ts chrome",
+    "build:firefox": "tsx scripts/build.ts firefox",
+    "icons": "tsx scripts/generate-icons.ts"
+  },
+  "dependencies": {
+    "@techie-mind/agent-core": "0.1.0",
+    "@techie-mind/browser": "0.1.0",
+    "@techie-mind/config": "0.1.0",
+    "@techie-mind/contracts": "0.1.0",
+    "@techie-mind/perception": "0.1.0",
+    "@techie-mind/privacy": "0.1.0",
+    "@techie-mind/security": "0.1.0",
+    "@techie-mind/telemetry": "0.1.0",
+    "preact": "^10.27.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "tsx": "^4.23.15",
+    "vite": "^7.3.6"
+  }
+}

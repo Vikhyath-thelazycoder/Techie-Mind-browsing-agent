@@ -1,0 +1,166 @@
+import { z } from 'zod';
+import { Action } from './action.js';
+import { Observation } from './perception.js';
+import { Id, ShortText, Timestamp } from './primitives.js';
+
+/**
+ * Internal extension messaging protocol. Every message crossing a context boundary
+ * (side panel ↔ service worker ↔ content script) is parsed against these schemas;
+ * anything unrecognised is rejected.
+ */
+export const HealthRequest = z.strictObject({ type: z.literal('HEALTH_REQUEST') });
+
+export const HealthResponse = z.strictObject({
+  type: z.literal('HEALTH_RESPONSE'),
+  ok: z.literal(true),
+  component: z.literal('background'),
+  browser: z.enum(['chrome', 'firefox']),
+  version: z.string().max(32),
+  startedAt: Timestamp,
+  uptimeMs: z.number().nonnegative(),
+});
+export type HealthResponse = z.infer<typeof HealthResponse>;
+
+export const OpenSettingsRequest = z.strictObject({ type: z.literal('OPEN_SETTINGS') });
+
+export const OkResponse = z.strictObject({ type: z.literal('OK'), ok: z.literal(true) });
+export type OkResponse = z.infer<typeof OkResponse>;
+
+/** Messages the background service worker accepts from extension pages (one-shot). */
+export const BackgroundRequest = z.discriminatedUnion('type', [HealthRequest, OpenSettingsRequest]);
+export type BackgroundRequest = z.infer<typeof BackgroundRequest>;
+
+export const ErrorResponse = z.strictObject({
+  type: z.literal('ERROR'),
+  ok: z.literal(false),
+  code: z.enum(['INVALID_MESSAGE', 'UNTRUSTED_SENDER', 'INTERNAL']),
+  message: z.string().max(500),
+});
+export type ErrorResponse = z.infer<typeof ErrorResponse>;
+
+// ── Content-script protocol (background → content script in the agent's tab) ─────────────────
+
+export const ContentPing = z.strictObject({ type: z.literal('CONTENT_PING') });
+
+export const ContentPong = z.strictObject({
+  type: z.literal('CONTENT_PONG'),
+  ok: z.literal(true),
+  origin: z.string().max(512),
+  documentId: Id,
+  readyState: z.enum(['loading', 'interactive', 'complete']),
+});
+export type ContentPong = z.infer<typeof ContentPong>;
+
+/** Capture a local DOM/A11y observation of the current document. */
+export const ObserveCommand = z.strictObject({
+  type: z.literal('OBSERVE'),
+  taskId: Id,
+  observationId: Id,
+  /** The content script cannot know its own tab id; the background supplies it. */
+  tabId: z.number().int().nonnegative(),
+});
+
+export const ObserveResponse = z.strictObject({
+  type: z.literal('OBSERVATION'),
+  observation: Observation,
+});
+export type ObserveResponse = z.infer<typeof ObserveResponse>;
+
+/** Execute one bound, validated action. The content script re-validates binding and schema. */
+export const ExecuteCommand = z.strictObject({ type: z.literal('EXECUTE'), action: Action });
+
+export const ExecuteRejection = z.enum([
+  'INVALID_ACTION',
+  'DOCUMENT_MISMATCH',
+  'ORIGIN_MISMATCH',
+  'STALE_OBSERVATION',
+  'TARGET_MISSING',
+  'TARGET_CHANGED',
+  'TARGET_HIDDEN',
+  'TARGET_DISABLED',
+  'TARGET_NOT_EDITABLE',
+  'TARGET_DETACHED',
+  'UNSUPPORTED_ACTION',
+]);
+export type ExecuteRejection = z.infer<typeof ExecuteRejection>;
+
+export const ExecuteResponse = z.strictObject({
+  type: z.literal('EXECUTE_RESULT'),
+  actionId: Id,
+  status: z.enum(['executed', 'rejected', 'failed']),
+  code: ExecuteRejection.nullable(),
+  message: ShortText,
+  /** Field value read back after TYPE/CLEAR/SELECT (local verification). */
+  valueAfter: z.string().max(2000).nullable(),
+  versionAfter: z.number().int().nonnegative(),
+  /** True when a navigation-capable side effect (submit/click) was scheduled after this response. */
+  deferred: z.boolean(),
+});
+export type ExecuteResponse = z.infer<typeof ExecuteResponse>;
+
+/** Cheap page-state probe used for settling and verification. */
+export const ProbeCommand = z.strictObject({ type: z.literal('PROBE'), elementId: Id.nullable() });
+
+/** Whole-page privacy scan, run inside the page. The reply carries counts only — never text. */
+export const PrivacyScanCommand = z.strictObject({ type: z.literal('PRIVACY_SCAN') });
+
+export const PrivacyScanResponse = z.strictObject({
+  type: z.literal('PRIVACY_SCAN_RESULT'),
+  documentId: Id,
+  total: z.number().int().nonnegative(),
+  byKind: z.record(z.string().max(32), z.number().int().nonnegative()),
+  fields: z.number().int().nonnegative(),
+  /** Rendered text blocks that try to instruct the agent (reported, never obeyed). */
+  injections: z.number().int().nonnegative(),
+  textChars: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  ms: z.number().nonnegative(),
+});
+export type PrivacyScanResponse = z.infer<typeof PrivacyScanResponse>;
+
+export const ProbeResponse = z.strictObject({
+  type: z.literal('PROBE_RESULT'),
+  url: z.string().max(2048),
+  origin: z.string().max(512),
+  title: z.string().max(512),
+  documentId: Id,
+  version: z.number().int().nonnegative(),
+  readyState: z.enum(['loading', 'interactive', 'complete']),
+  element: z
+    .strictObject({
+      exists: z.boolean(),
+      visible: z.boolean(),
+      value: z.string().max(2000).nullable(),
+    })
+    .nullable(),
+  /**
+   * Primary media = the largest visible <video>/<audio> on the page (ignores hidden/tiny preview
+   * players). `playing` and `currentTime` describe that element only.
+   */
+  media: z.strictObject({
+    present: z.boolean(),
+    playing: z.boolean(),
+    currentTime: z.number().nonnegative().nullable(),
+  }),
+});
+export type ProbeResponse = z.infer<typeof ProbeResponse>;
+
+/** Messages the content script accepts from its own background. */
+export const ContentRequest = z.discriminatedUnion('type', [
+  ContentPing,
+  ObserveCommand,
+  ExecuteCommand,
+  ProbeCommand,
+  PrivacyScanCommand,
+]);
+export type ContentRequest = z.infer<typeof ContentRequest>;
+
+export const ContentResponse = z.union([
+  ContentPong,
+  ObserveResponse,
+  ExecuteResponse,
+  ProbeResponse,
+  PrivacyScanResponse,
+  ErrorResponse,
+]);
+export type ContentResponse = z.infer<typeof ContentResponse>;

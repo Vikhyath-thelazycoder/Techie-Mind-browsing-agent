@@ -1,0 +1,13 @@
+{
+  "name": "@techie-mind/perception",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local page perception (runs in the page): DOM observation, accessibility projection, element registry, versioning.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@techie-mind/contracts": "0.1.0"
+  }
+}

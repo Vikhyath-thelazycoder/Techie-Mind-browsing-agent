@@ -1,0 +1,13 @@
+{
+  "name": "@techie-mind/telemetry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Structured, masked, hash-chained logging and latency measurement.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@techie-mind/contracts": "0.1.0"
+  }
+}

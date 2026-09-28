@@ -1,0 +1,14 @@
+{
+  "name": "@techie-mind/security",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local action firewall: binding, freshness, risk classification, privacy and prompt-injection/provenance checks, authorization.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@techie-mind/contracts": "0.1.0",
+    "@techie-mind/privacy": "0.1.0"
+  }
+}

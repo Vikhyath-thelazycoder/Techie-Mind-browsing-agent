@@ -1,0 +1,22 @@
+{
+  "measuredAt": "2026-09-28T15:31:48.950Z",
+  "environment": "Playwright Chromium (headless), local machine",
+  "sidePanel": {
+    "visibleMs": 69,
+    "domContentLoadedMs": 50.30000000074506,
+    "loadMs": 51,
+    "usedJSHeapBytes": 4597243
+  },
+  "panelToServiceWorkerMs": {
+    "n": 50,
+    "p50": 0.19999999925494194,
+    "p95": 0.40000000037252903,
+    "p99": 0.8000000007450581
+  },
+  "serviceWorkerToContentScriptMs": {
+    "n": 50,
+    "p50": 0.10000000149011612,
+    "p95": 0.2000000011175871,
+    "p99": 0.900000000372529
+  }
+}

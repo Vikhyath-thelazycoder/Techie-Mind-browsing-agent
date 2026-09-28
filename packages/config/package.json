@@ -1,0 +1,14 @@
+{
+  "name": "@techie-mind/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Single authoritative settings/model configuration for Techie Mind.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@techie-mind/contracts": "0.1.0",
+    "zod": "^4.6.5"
+  }
+}

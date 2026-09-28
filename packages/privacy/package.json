@@ -1,0 +1,13 @@
+{
+  "name": "@techie-mind/privacy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local privacy engine: layered sensitive-data detection, redaction, memory-only token vault, sanitized observations and the outbound privacy gate.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@techie-mind/contracts": "0.1.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@techie-mind/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Strict, runtime-validated contracts shared by the browser runtime, models and server.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}

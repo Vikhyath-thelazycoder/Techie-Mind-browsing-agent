@@ -1,0 +1,292 @@
+[
+  {
+    "name": "A",
+    "request": "Open YouTube and search for Kannada songs.",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.youtube.com/results?search_query=Kannada+songs",
+    "independent": {
+      "host": "www.youtube.com",
+      "path": "/results",
+      "param": "Kannada songs",
+      "field": "Kannada songs",
+      "matchingLinks": 25
+    },
+    "timings": {
+      "intentMs": 6.099999999627471,
+      "contextMs": 0.7999999988824129,
+      "routeMs": 0.10000000149011612,
+      "resolutionMs": 0,
+      "privacyMs": 9.800000000745058,
+      "firewallMs": 1.699999999254942,
+      "navigationMs": 2043.699999999255,
+      "observationMs": 29.40000000037253,
+      "groundingMs": 0.09999999962747097,
+      "actionMs": 6.900000000372529,
+      "verificationMs": 1.900000000372529,
+      "waitMs": 1418.5000000018626,
+      "totalMs": 3546.7000000011176,
+      "modelCalls": 0,
+      "observations": 4
+    },
+    "wallMs": 3569,
+    "recovery": [],
+    "recordedAt": "2026-09-28T14:09:50.599Z"
+  },
+  {
+    "name": "B",
+    "request": "Open YouTube and search for Python tutorials.",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.youtube.com/results?search_query=Python+tutorials",
+    "independent": {
+      "host": "www.youtube.com",
+      "path": "/results",
+      "param": "Python tutorials",
+      "field": "Python tutorials",
+      "matchingLinks": 47
+    },
+    "timings": {
+      "intentMs": 6,
+      "contextMs": 1.599999999627471,
+      "routeMs": 0.19999999925494194,
+      "resolutionMs": 0,
+      "privacyMs": 12.399999998509884,
+      "firewallMs": 2.399999998509884,
+      "navigationMs": 1742.699999999255,
+      "observationMs": 30.399999998509884,
+      "groundingMs": 0.30000000074505806,
+      "actionMs": 7.700000001117587,
+      "verificationMs": 1.6000000014901161,
+      "waitMs": 1418.199999999255,
+      "totalMs": 3254.9000000003725,
+      "modelCalls": 0,
+      "observations": 4
+    },
+    "wallMs": 3270,
+    "recovery": [],
+    "recordedAt": "2026-09-28T14:09:54.383Z"
+  },
+  {
+    "name": "C",
+    "request": "Open Flipkart and search for running shoes.",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.flipkart.com/search?q=running%20shoes&otracker=search&otracker1=search&marketplace=FLIPKART&as-show=off&as=off",
+    "independent": {
+      "host": "www.flipkart.com",
+      "path": "/search",
+      "param": "running shoes",
+      "field": "running shoes",
+      "matchingLinks": 36
+    },
+    "timings": {
+      "intentMs": 6,
+      "contextMs": 1,
+      "routeMs": 0.19999999925494194,
+      "resolutionMs": 0,
+      "privacyMs": 28.899999998509884,
+      "firewallMs": 2.399999998509884,
+      "navigationMs": 1516.8999999985099,
+      "observationMs": 39.09999999962747,
+      "groundingMs": 0.30000000074505806,
+      "actionMs": 4.5,
+      "verificationMs": 1.700000001117587,
+      "waitMs": 2138.5,
+      "totalMs": 3761.9000000003725,
+      "modelCalls": 0,
+      "observations": 2
+    },
+    "wallMs": 3781,
+    "recovery": [],
+    "recordedAt": "2026-09-28T14:09:58.676Z"
+  },
+  {
+    "name": "P1",
+    "request": "Open YouTube and play some Kannada songs",
+    "status": "HUMAN_REQUIRED",
+    "finalUrl": "https://www.youtube.com/watch?v=4ZIfqCiYiXw&list=RD4ZIfqCiYiXw&start_radio=1",
+    "independent": {
+      "path": "/watch",
+      "media": {
+        "paused": true,
+        "currentTime": 0
+      }
+    },
+    "timings": {
+      "intentMs": 5.200000002980232,
+      "routeMs": 0,
+      "navigationMs": 1531.4000000059605,
+      "observationMs": 57.29999999701977,
+      "groundingMs": 0.7999999970197678,
+      "actionMs": 23.400000005960464,
+      "verificationMs": 12051.699999988079,
+      "totalMs": 16026.20000000298,
+      "modelCalls": 0,
+      "observations": 5
+    },
+    "wallMs": 16047,
+    "recovery": [
+      "open-result:L5:alternative-strategy",
+      "open-result:L6:handover"
+    ],
+    "recordedAt": "2026-09-28T09:26:01.345Z"
+  },
+  {
+    "name": "P2",
+    "request": "Open YouTube and play some Kannada songs",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.youtube.com/watch?v=4ZIfqCiYiXw&list=RD4ZIfqCiYiXw&start_radio=1",
+    "independent": {
+      "path": "/watch",
+      "media": {
+        "paused": false,
+        "currentTime": 2.313056
+      }
+    },
+    "timings": {
+      "intentMs": 5.699999988079071,
+      "routeMs": 0.09999999403953552,
+      "navigationMs": 1432.0999999940395,
+      "observationMs": 38.00000001490116,
+      "groundingMs": 0.7000000029802322,
+      "actionMs": 10.400000005960464,
+      "verificationMs": 1206.0000000149012,
+      "totalMs": 6167.5,
+      "modelCalls": 0,
+      "observations": 5
+    },
+    "wallMs": 6188,
+    "recovery": [],
+    "recordedAt": "2026-09-28T09:26:08.124Z"
+  },
+  {
+    "name": "V1",
+    "request": "go to youtube and look up lo-fi beats for studying",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.youtube.com/results?search_query=lo-fi+beats+for+studying",
+    "independent": {
+      "host": "www.youtube.com",
+      "path": "/results",
+      "param": "lo-fi beats for studying",
+      "field": "lo-fi beats for studying",
+      "matchingLinks": 27
+    },
+    "timings": {
+      "intentMs": 5.900000000372529,
+      "contextMs": 0.7000000011175871,
+      "routeMs": 0.09999999962747097,
+      "resolutionMs": 0,
+      "privacyMs": 13,
+      "firewallMs": 2.099999999627471,
+      "navigationMs": 1540.4000000003725,
+      "observationMs": 124.40000000037253,
+      "groundingMs": 0.19999999925494194,
+      "actionMs": 7.099999999627471,
+      "verificationMs": 1,
+      "waitMs": 1010.9000000003725,
+      "totalMs": 2892.300000000745,
+      "modelCalls": 0,
+      "observations": 3
+    },
+    "wallMs": 2928,
+    "recovery": [],
+    "recordedAt": "2026-09-28T14:10:03.645Z"
+  },
+  {
+    "name": "V2",
+    "request": "YouTube par carnatic violin search karo",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.youtube.com/results?search_query=carnatic+violin",
+    "independent": {
+      "host": "www.youtube.com",
+      "path": "/results",
+      "param": "carnatic violin",
+      "field": "carnatic violin",
+      "matchingLinks": 41
+    },
+    "timings": {
+      "intentMs": 5.899999998509884,
+      "contextMs": 0.599999999627471,
+      "routeMs": 0.19999999925494194,
+      "resolutionMs": 0,
+      "privacyMs": 12.099999999627471,
+      "firewallMs": 2.5,
+      "navigationMs": 1846.4000000003725,
+      "observationMs": 127.80000000074506,
+      "groundingMs": 0.2000000011175871,
+      "actionMs": 8.200000001117587,
+      "verificationMs": 2,
+      "waitMs": 1016.5999999996275,
+      "totalMs": 3149.7000000011176,
+      "modelCalls": 0,
+      "observations": 3
+    },
+    "wallMs": 3168,
+    "recovery": [],
+    "recordedAt": "2026-09-28T14:10:07.397Z"
+  },
+  {
+    "name": "V3",
+    "request": "Search Flipkart for steel water bottle",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.flipkart.com/search?q=steel%20water%20bottle&otracker=search&otracker1=search&marketplace=FLIPKART&as-show=off&as=off",
+    "independent": {
+      "host": "www.flipkart.com",
+      "path": "/search",
+      "param": "steel water bottle",
+      "field": "steel water bottle",
+      "matchingLinks": 41
+    },
+    "timings": {
+      "intentMs": 7.099999999627471,
+      "contextMs": 0.900000000372529,
+      "routeMs": 0.2999999988824129,
+      "resolutionMs": 0,
+      "privacyMs": 26.59999999962747,
+      "firewallMs": 1.900000000372529,
+      "navigationMs": 1566.300000000745,
+      "observationMs": 32.100000001490116,
+      "groundingMs": 0.40000000037252903,
+      "actionMs": 4.699999999254942,
+      "verificationMs": 2.000000001862645,
+      "waitMs": 2036.300000000745,
+      "totalMs": 3702.2000000011176,
+      "modelCalls": 0,
+      "observations": 2
+    },
+    "wallMs": 3721,
+    "recovery": [],
+    "recordedAt": "2026-09-28T14:10:11.622Z"
+  },
+  {
+    "name": "V4",
+    "request": "Flipkart alli bluetooth headphones search maadu",
+    "status": "COMPLETED",
+    "finalUrl": "https://www.flipkart.com/search?q=bluetooth%20headphones&otracker=search&otracker1=search&marketplace=FLIPKART&as-show=off&as=off",
+    "independent": {
+      "host": "www.flipkart.com",
+      "path": "/search",
+      "param": "bluetooth headphones",
+      "field": "bluetooth headphones",
+      "matchingLinks": 11
+    },
+    "timings": {
+      "intentMs": 6.300000000745058,
+      "contextMs": 2.699999999254942,
+      "routeMs": 0.19999999925494194,
+      "resolutionMs": 0,
+      "privacyMs": 29.099999997764826,
+      "firewallMs": 2.699999999254942,
+      "navigationMs": 1548.800000000745,
+      "observationMs": 32.999999998137355,
+      "groundingMs": 0.2999999988824129,
+      "actionMs": 5.299999998882413,
+      "verificationMs": 1.8999999985098839,
+      "waitMs": 2446.5999999996275,
+      "totalMs": 4102.0999999996275,
+      "modelCalls": 0,
+      "observations": 2
+    },
+    "wallMs": 4119,
+    "recovery": [],
+    "recordedAt": "2026-09-28T14:10:16.264Z"
+  }
+]
