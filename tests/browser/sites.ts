@@ -283,13 +283,19 @@ const STORE_PRODUCTS: Array<[string, number, number, number]> = [
   ['ASUS Vivobook 16 laptop', 52990, 61000, 4.0],
 ];
 
-function storeSite(url: URL): string {
+function storeSite(url: URL, priceDelta = 0, brand = 'StoreKart'): string {
   const q = url.searchParams.get('q') ?? '';
+  const PRODUCTS = STORE_PRODUCTS.map(([t, p, o, r], i): [string, number, number, number] => [
+    t,
+    p + (i === 1 ? -priceDelta : priceDelta),
+    o,
+    r,
+  ]);
   const count = `<span id="cart-count">0</span>`;
-  const header = `<header><a href="/">StoreKart</a><form role="search" action="/search"><input type="search" name="q" aria-label="Search for products" value="${esc(q)}"><button type="submit">Search</button></form><a id="cart-link" href="/cart">Cart ${count}</a></header>`;
+  const header = `<header><a href="/">${brand}</a><form role="search" action="/search"><input type="search" name="q" aria-label="Search for products" value="${esc(q)}"><button type="submit">Search</button></form><a id="cart-link" href="/cart">Cart ${count}</a></header>`;
   const cartScript = `const n=Number(sessionStorage.getItem('cart')||0);document.getElementById('cart-count').textContent=n;`;
   if (url.pathname === '/search') {
-    const cards = STORE_PRODUCTS.map(
+    const cards = PRODUCTS.map(
       ([title, price, old, rating], i) =>
         `<div class="card" style="display:inline-block;width:260px;margin:8px;vertical-align:top"><a href="/p/${i + 1}">${esc(title)}</a><div><s>₹${old.toLocaleString('en-IN')}</s> <b>₹${price.toLocaleString('en-IN')}</b></div><span>${rating} ★</span></div>`,
     ).join('');
@@ -297,10 +303,10 @@ function storeSite(url: URL): string {
   }
   if (url.pathname.startsWith('/p/')) {
     const i = Number(url.pathname.slice(3)) - 1;
-    const [title, price] = STORE_PRODUCTS[i] ?? STORE_PRODUCTS[0]!;
+    const [title, price] = PRODUCTS[i] ?? PRODUCTS[0]!;
     return page(
-      `${title} - StoreKart`,
-      `${header}<main><h1>${esc(title)}</h1><p>₹${price.toLocaleString('en-IN')}</p><button id="add">Add to cart</button> <button id="buy">Buy now</button><p id="msg" role="status"></p></main>`,
+      `${title} - ${brand}`,
+      `${header}<main><h1>${esc(title)}</h1><p>₹${price.toLocaleString('en-IN')}</p><p>The ${esc(title)} has a 15.6 inch full HD screen, 16 GB of memory and a 512 GB SSD, with free delivery in three days.</p><button id="add">Add to cart</button> <button id="buy">Buy now</button><p id="msg" role="status"></p></main>`,
       `${cartScript}document.getElementById('add').onclick=()=>{const n=Number(sessionStorage.getItem('cart')||0)+1;sessionStorage.setItem('cart',n);document.getElementById('cart-count').textContent=n;document.getElementById('msg').textContent='Added to cart';};document.getElementById('buy').onclick=()=>{location.href='/checkout/payment'};`,
     );
   }
@@ -353,7 +359,8 @@ function tubeSite(url: URL): string {
 const SITES: Record<string, (url: URL) => string> = {
   'newtab.fixture.test': newTabSite,
   'visual.fixture.test': visualSite,
-  'store.fixture.test': storeSite,
+  'store.fixture.test': (url) => storeSite(url),
+  'mart.fixture.test': (url) => storeSite(url, 2000, 'MartBazaar'),
   'tube.fixture.test': tubeSite,
   'form.fixture.test': formSite,
   'spa.fixture.test': spaSite,
