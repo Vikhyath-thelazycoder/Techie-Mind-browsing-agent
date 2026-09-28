@@ -5,6 +5,9 @@ import { serveFixtureSites } from './sites.js';
 
 export const EXTENSION_DIR = resolve(import.meta.dirname, '../../apps/extension/dist/chrome');
 
+/** Loopback model endpoints: Ollama (11434) and the Laya adapter (8765). */
+export const MODEL_ENDPOINTS = /^http:\/\/(?:127\.0\.0\.1|localhost):(?:11434|8765)\//;
+
 /** A fixture origin served by Playwright routing — no real network, fully deterministic. */
 export const FIXTURE_ORIGIN = 'https://fixture.techiemind.test';
 
@@ -28,6 +31,8 @@ export const test = base.extend<Fixtures>({
     const context = await chromium.launchPersistentContext('', {
       channel: 'chromium',
       headless: true,
+      // Optional override for machines whose pinned Playwright browser is not installed.
+      ...(process.env['TM_CHROMIUM'] ? { executablePath: process.env['TM_CHROMIUM'] } : {}),
       args: [
         `--disable-extensions-except=${EXTENSION_DIR}`,
         `--load-extension=${EXTENSION_DIR}`,
@@ -38,6 +43,9 @@ export const test = base.extend<Fixtures>({
       route.fulfill({ status: 200, contentType: 'text/html', body: FIXTURE_HTML }),
     );
     await serveFixtureSites(context);
+    // Local model endpoints (Ollama, Laya adapter) are "not running" unless a test installs
+    // stand-ins — so fixture tests never depend on a model that happens to run on the machine.
+    await context.route(MODEL_ENDPOINTS, (route) => route.abort('connectionrefused'));
     await use(context);
     await context.close();
   },

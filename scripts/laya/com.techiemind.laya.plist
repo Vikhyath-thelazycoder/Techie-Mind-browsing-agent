@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Keeps the Laya adapter warm (spec §19: launchd, persistent process).
+  Install: replace REPO with the repository path, then
+    cp scripts/laya/com.techiemind.laya.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.techiemind.laya.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.techiemind.laya</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/USER/.cache/techymind-laya/py311/bin/python</string>
+    <string>REPO/scripts/laya/laya_adapter.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/techiemind-laya.log</string>
+  <key>StandardErrorPath</key><string>/tmp/techiemind-laya.log</string>
+</dict>
+</plist>

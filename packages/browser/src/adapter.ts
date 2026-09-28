@@ -72,6 +72,11 @@ export interface BrowserAdapter {
   /** Browser-level navigation of an existing tab. */
   navigateTab(tabId: number, url: string): Promise<void>;
   goBack(tabId: number): Promise<void>;
+  /**
+   * PNG data URL of what the tab shows right now, or null when it is not the visible tab of its
+   * window (the browser can only capture visible tabs).
+   */
+  captureTab(tabId: number): Promise<string | null>;
   /** Inject a bundled extension script (path inside the package) into a tab's top frame. */
   injectScript(tabId: number, file: string): Promise<void>;
   /** Accept long-lived connections on a named channel. */
@@ -182,6 +187,16 @@ export function createAdapter(kind: BrowserKind, api: WebExtensionApi): BrowserA
     },
 
     goBack: (tabId) => api.tabs.goBack(tabId),
+
+    async captureTab(tabId) {
+      try {
+        const tab = await api.tabs.get(tabId);
+        if (!tab.active || typeof tab.windowId !== 'number') return null;
+        return await api.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+      } catch {
+        return null;
+      }
+    },
 
     async tabsOpenedBy(openerTabId) {
       const tabs = await api.tabs.query({});

@@ -77,6 +77,12 @@ describe('detection — Indian identity, financial and secret kinds', () => {
       'Order OD432156789012345 shipped',
       'ISBN 978-3-16-148410-0',
       `Request id ${crypto.randomUUID()}`,
+      `Task task-${crypto.randomUUID()} started`,
+      `Observation obs-task-${crypto.randomUUID()}-12`,
+      // Digit runs inside UUIDs/digests look like phone/Aadhaar numbers (this one did, as a phone).
+      'Request id 0da0f277-1d9a-4afd-b158-7287271663da',
+      'Request id 97023411-6895-40a6-8fd2-93a4176f8dba',
+      'Commit 8059041973ea747888b90d9dfebad58c14706056',
       `Reference ${aadhaarInvalid()}`,
       `Item code ${cardInvalid()}`,
       'Version v2.10.3',

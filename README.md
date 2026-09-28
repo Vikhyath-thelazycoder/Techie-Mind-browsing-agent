@@ -4,17 +4,29 @@ Privacy-first autonomous browser agent for **SIH26171 — On-device Visual Perce
 
 > The model provides intelligence. The browser runtime provides authority. The privacy layer controls information. The action firewall controls execution. The verifier controls truth. The human remains the final authority.
 
-**Current status:** Phase 0 (Foundation) complete — see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
+**Current status:** Phases 0–4 complete (Batch A: model routing + visual fallback) — see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
 ## Quick start
 
 ```bash
 npm install
 npm run build        # Chrome + Firefox extension builds
-npm run verify       # all Phase 0 acceptance gates (typecheck, lint, unit, builds, real Chromium, docs, hygiene)
+npm run verify       # current acceptance gates (Phase 3; `npm run verify:phase4` for vision)
 ```
 
 Load `apps/extension/dist/chrome` via `chrome://extensions` → *Load unpacked*.
+
+### Local models (optional — the agent works with code alone)
+
+```bash
+ollama pull qwen2.5vl:7b                       # text + vision model (Settings → AI & Models)
+~/.cache/techymind-laya/py311/bin/python scripts/laya/laya_adapter.py   # keeps Laya warm on 127.0.0.1:8765
+# paste the token from ~/.config/techie-mind/laya.token into Settings → AI & Models → Laya
+npm run bench:models -- --vision               # real latency/accuracy → evidence/model-bench.json
+```
+
+Models are asked only when code is unsure; see [docs/MODEL_ROUTING.md](docs/MODEL_ROUTING.md) and
+[docs/PERCEPTION.md](docs/PERCEPTION.md).
 
 ## Documentation
 
@@ -33,4 +45,5 @@ Load `apps/extension/dist/chrome` via `chrome://extensions` → *Load unpacked*.
 | `packages/config` | Single authoritative settings and model configuration |
 | `packages/telemetry` | Masked structured logging, hash-chained audit, latency measurement |
 | `packages/browser` | Browser adapter over Chrome/Firefox APIs |
+| `packages/models` | Model tiers: Laya, local Ollama / gateway, vision — clients, prompts, strict parsing |
 | `tests/browser` | Real-Chromium tests of the built extension |

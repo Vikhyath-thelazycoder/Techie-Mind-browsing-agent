@@ -295,7 +295,13 @@ function entropySecrets(text: string): Detection[] {
     if (classes < 3 || entropy(v) < 3.6) continue;
     if (/^[a-z]+(?:[-_][a-z]+)+$/i.test(v)) continue; // slugs
     // Identifiers that are random by design but not secrets: UUIDs, hex digests.
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) continue;
+    // (Also with short word prefixes and a counter, as in our own ids: "obs-task-<uuid>-3".)
+    if (
+      /^(?:[a-z]{1,16}-){0,3}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-\d{1,6})?$/i.test(
+        v,
+      )
+    )
+      continue;
     if (/^[0-9a-f]+$/i.test(v)) continue;
     out.push({
       start: m.index,
@@ -332,7 +338,30 @@ export function detectText(text: string): Detection[] {
     }
   }
   found.push(...entropySecrets(text));
-  return resolveOverlaps(found);
+  const ids = identifierSpans(text);
+  return resolveOverlaps(
+    ids.length
+      ? found.filter((d) => !ids.some((i) => i.start <= d.start && d.end <= i.end))
+      : found,
+  );
+}
+
+/**
+ * Identifiers that are random by design — UUIDs (optionally prefixed, as in "obs-task-<uuid>-3")
+ * and hex digests. Digit runs inside them are not phone, Aadhaar or account numbers: without this,
+ * about 2% of random UUIDs contain ten digits in a row and were read as a phone number.
+ */
+const IDENTIFIER_RE =
+  /(?<![A-Za-z0-9_-])(?:(?:[a-z]{1,16}-){0,3}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-\d{1,6})?|[0-9a-f]{32,128})(?![A-Za-z0-9_-])/gi;
+
+function identifierSpans(text: string): Array<{ start: number; end: number }> {
+  const out: Array<{ start: number; end: number }> = [];
+  for (const m of text.matchAll(IDENTIFIER_RE)) {
+    // A pure-digit run is a number, not a digest (e.g. a 32-digit account/reference): keep it.
+    if (/^\d+$/.test(m[0])) continue;
+    out.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return out;
 }
 
 function resolveOverlaps(found: Detection[]): Detection[] {
@@ -499,4 +528,101 @@ export function scanDocument(
     truncated: full.length > MAX_SCAN_CHARS,
     ms: clock() - started,
   };
+}
+
+// ── visual privacy (Phase 4) ────────────────────────────────────────────────────────────────────
+
+export interface SensitiveRegion {
+  /** Viewport CSS pixels. */
+  box: { x: number; y: number; width: number; height: number };
+  reason: 'text' | 'field' | 'person';
+}
+
+const MAX_REGIONS = 500;
+const MAX_TEXT_NODES = 20_000;
+/** Image hints that a picture shows a person (face detection is not available: DOM hints only). */
+const PERSON_HINT =
+  /\b(?:avatar|profile|portrait|selfie|headshot|photo of|picture of|user|person|people|face|author|team member|staff)\b/i;
+
+function onScreen(r: DOMRect, vw: number, vh: number): boolean {
+  return r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh;
+}
+
+/**
+ * Rectangles of everything sensitive that is visible right now: text spans the detectors flag,
+ * sensitive or filled fields (passwords, cards, OTPs … whatever they hold), and — when asked —
+ * images that look like people. Runs inside the page; returns geometry only, never content.
+ */
+export function sensitiveRegions(doc: Document, options: { people: boolean }): SensitiveRegion[] {
+  const win = doc.defaultView;
+  const vw = win?.innerWidth ?? 0;
+  const vh = win?.innerHeight ?? 0;
+  const out: SensitiveRegion[] = [];
+  const push = (r: DOMRect, reason: SensitiveRegion['reason']) => {
+    if (out.length < MAX_REGIONS && onScreen(r, vw, vh)) {
+      out.push({ box: { x: r.left, y: r.top, width: r.width, height: r.height }, reason });
+    }
+  };
+  // Text spans.
+  const walker = doc.createTreeWalker(doc.body ?? doc.documentElement, 4 /* SHOW_TEXT */);
+  let seen = 0;
+  for (let node = walker.nextNode(); node && seen < MAX_TEXT_NODES; node = walker.nextNode()) {
+    seen += 1;
+    const text = node.nodeValue ?? '';
+    if (text.trim().length < 3) continue;
+    for (const d of detectText(text)) {
+      const range = doc.createRange();
+      range.setStart(node, d.start);
+      range.setEnd(node, d.end);
+      for (const rect of Array.from(range.getClientRects())) push(rect, 'text');
+    }
+  }
+  // Fields: sensitive by meaning (whatever they hold) or by value.
+  for (const el of Array.from(doc.querySelectorAll('input, textarea, select'))) {
+    const input = el as HTMLInputElement;
+    if (
+      ['hidden', 'submit', 'button', 'checkbox', 'radio', 'image', 'reset'].includes(input.type)
+    ) {
+      continue;
+    }
+    const attrs: Record<string, string> = {};
+    for (const name of ['autocomplete', 'name', 'id', 'placeholder', 'aria-label', 'title']) {
+      const v = input.getAttribute(name);
+      if (v) attrs[name] = v;
+    }
+    const semantic = detectField({
+      nodeId: 'region',
+      parentId: null,
+      tag: input.tagName.toLowerCase(),
+      role: input.type === 'search' ? 'searchbox' : 'textbox',
+      name: attrs['aria-label'] ?? input.labels?.[0]?.textContent?.trim() ?? null,
+      text: null,
+      attributes: attrs,
+      inputType: input.tagName === 'INPUT' ? input.type : null,
+      formId: null,
+      value: null,
+      visible: true,
+      interactive: true,
+      editable: true,
+      bbox: null,
+    });
+    const valued = typeof input.value === 'string' && detectText(input.value).length > 0;
+    if (semantic || valued) push(input.getBoundingClientRect(), 'field');
+  }
+  // People.
+  if (options.people) {
+    for (const img of Array.from(doc.querySelectorAll('img, [role="img"]'))) {
+      const hint = [
+        img.getAttribute('alt'),
+        img.getAttribute('aria-label'),
+        img.getAttribute('title'),
+        img.getAttribute('class'),
+        img.getAttribute('src')?.split('/').pop(),
+      ]
+        .filter(Boolean)
+        .join(' ');
+      if (PERSON_HINT.test(hint)) push(img.getBoundingClientRect(), 'person');
+    }
+  }
+  return out;
 }

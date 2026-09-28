@@ -44,10 +44,13 @@ describe('manifest generator', () => {
     }
   });
 
-  it('declares no content scripts (zero footprint in ordinary browsing) and only http(s) host access', () => {
+  it('declares no content scripts (zero footprint in ordinary browsing) and one web host grant', () => {
     for (const m of [chrome, firefox]) {
       expect(m).not.toHaveProperty('content_scripts');
-      expect(m.host_permissions).toEqual(['http://*/*', 'https://*/*']);
+      // <all_urls> is what captureVisibleTab requires (Phase 4 visual fallback); nothing broader.
+      expect(m.host_permissions).toEqual(['<all_urls>']);
+      expect(m.permissions as string[]).not.toContain('debugger');
+      expect(m.permissions as string[]).not.toContain('activeTab');
     }
   });
 });

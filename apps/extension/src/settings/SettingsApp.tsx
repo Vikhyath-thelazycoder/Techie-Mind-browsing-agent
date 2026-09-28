@@ -192,6 +192,7 @@ const inputValue = (e: Event) => (e.target as HTMLInputElement).value;
 function ModelsSection({ adapter, settings }: SectionProps) {
   const [tab, setTab] = useState<'ollama' | 'gateway' | 'voice'>('ollama');
   const [ollama, setOllama] = useState(settings.model.ollama);
+  const [laya, setLaya] = useState(settings.model.laya);
   const [gateway, setGateway] = useState({
     endpoint: settings.model.openaiCompatible.endpoint ?? '',
     model: settings.model.openaiCompatible.model,
@@ -206,6 +207,7 @@ function ModelsSection({ adapter, settings }: SectionProps) {
       model: {
         activeProvider: provider,
         ollama,
+        laya: { ...laya, token: laya.token.trim() },
         openaiCompatible: { endpoint: gateway.endpoint.trim() || null, model: gateway.model },
       },
       voice,
@@ -219,8 +221,8 @@ function ModelsSection({ adapter, settings }: SectionProps) {
       />
       <p class="tm-active-model" data-testid="active-model">
         Active model: <strong>{active.label}</strong> ({active.local ? 'local' : 'gateway'}
-        {active.configured ? '' : ', not configured'}) · availability is checked by the model router
-        in Phase 3.
+        {active.configured ? '' : ', not configured'}) · checked before each model call and never
+        swapped for another model. Models are asked only when code is unsure.
       </p>
       <SubTabs
         tabs={[
@@ -248,7 +250,7 @@ function ModelsSection({ adapter, settings }: SectionProps) {
           <Field
             label="Selected Model"
             htmlFor="ollama-model"
-            hint="Pull models with `ollama pull <model>`. Model discovery arrives in Phase 3."
+            hint="Pull it first with `ollama pull <model>`. qwen2.5vl:7b reads both text and screenshots."
           >
             <input
               id="ollama-model"
@@ -267,6 +269,52 @@ function ModelsSection({ adapter, settings }: SectionProps) {
             />
             Use the local model as the active model
           </label>
+        </Card>
+      ) : null}
+      {tab === 'ollama' ? (
+        <Card
+          icon="bolt"
+          title="Laya — Fast Local Decisions"
+          subtitle="A small model that sorts unclear commands in milliseconds, before the larger model is asked."
+        >
+          <label class="tm-check">
+            <input
+              type="checkbox"
+              data-testid="laya-enabled"
+              checked={laya.enabled}
+              onChange={(e) =>
+                setLaya({ ...laya, enabled: (e.target as HTMLInputElement).checked })
+              }
+            />
+            Ask Laya first
+          </label>
+          <Field
+            label="Laya Adapter URL"
+            htmlFor="laya-url"
+            hint="Start it with scripts/laya/laya_adapter.py. Must be a loopback address."
+          >
+            <input
+              id="laya-url"
+              class="tm-text"
+              value={laya.adapterUrl}
+              onInput={(e) => setLaya({ ...laya, adapterUrl: inputValue(e) })}
+            />
+          </Field>
+          <Field
+            label="Adapter Token"
+            htmlFor="laya-token"
+            hint="From ~/.config/techie-mind/laya.token. It only authenticates this browser to the local adapter."
+          >
+            <input
+              id="laya-token"
+              type="password"
+              class="tm-text"
+              data-testid="laya-token"
+              autocomplete="off"
+              value={laya.token}
+              onInput={(e) => setLaya({ ...laya, token: inputValue(e) })}
+            />
+          </Field>
         </Card>
       ) : null}
       {tab === 'gateway' ? (
@@ -293,8 +341,8 @@ function ModelsSection({ adapter, settings }: SectionProps) {
             />
           </Field>
           <p class="tm-note">
-            API keys are not stored in browser settings. Credential handling (server-side gateway)
-            is implemented in Phase 3.
+            API keys are never stored in the browser. Point this at a gateway you run (for example
+            LiteLLM) that holds the provider key; requests pass the privacy gate first.
           </p>
           <label class="tm-check">
             <input

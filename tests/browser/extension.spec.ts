@@ -82,7 +82,7 @@ test.describe('Chrome MV3 extension — real browser', () => {
     await expect(page.locator('.tm-brand-name')).toHaveText('Techie Mind');
     await expect(page.getByRole('heading', { name: 'What are we doing today?' })).toBeVisible();
     await expect(page.locator('.tm-action-card')).toHaveCount(5);
-    await expect(page.getByTestId('model-chip')).toContainText('qwen2.5:7b');
+    await expect(page.getByTestId('model-chip')).toContainText('qwen2.5vl:7b');
     await expect(page.getByTestId('privacy-pill')).toContainText('ON');
     // Send is live but disabled while the task box is empty.
     await expect(page.getByTestId('send')).toBeDisabled();
@@ -163,9 +163,9 @@ test.describe('Chrome MV3 extension — real browser', () => {
     // Switch back to local from the side panel: settings page follows.
     await panel.getByTestId('model-chip').click();
     await panel.getByRole('menuitemradio', { name: /Local Model/ }).click();
-    await expect(panel.getByTestId('model-chip')).toContainText('qwen2.5:7b');
+    await expect(panel.getByTestId('model-chip')).toContainText('qwen2.5vl:7b');
     await settings.reload();
-    await expect(settings.getByTestId('active-model')).toContainText('qwen2.5:7b');
+    await expect(settings.getByTestId('active-model')).toContainText('qwen2.5vl:7b');
   });
 
   test('diagnostics system test round-trips through the service worker', async ({

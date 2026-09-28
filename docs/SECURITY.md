@@ -14,7 +14,7 @@
 | Background accepts only its own extension pages + schema-valid messages | `apps/extension/src/background/handler.ts` | `handlers.test.ts`, real Chromium |
 | Content script answers only its own background; strict guard | `apps/extension/src/content/handler.ts` | `handlers.test.ts`, `guards.test.ts`, real Chromium |
 | CSP: no eval, no remote scripts | manifest generator | `manifest.test.ts`, Phase 0 gate |
-| Least-privilege permissions (`storage`, `tabs`, `sidePanel`) | manifest generator | `manifest.test.ts` |
+| Least-privilege permissions (`storage`, `tabs`, `sidePanel`, `scripting`; host `<all_urls>` — required by `tabs.captureVisibleTab` for the Phase 4 visual fallback; scripting stays http(s)-only in code) | manifest generator | `manifest.test.ts` |
 | Lint bans eval / new Function / `javascript:` / raw HTML injection | `eslint.config.js` | positive control verified |
 | Log masking + flat primitive log payloads + hash-chained audit | `packages/telemetry` | `telemetry.test.ts` |
 | Non-disableable safety settings (financial safety, handover, Indian ID redaction) | `packages/config` | `settings.test.ts` |

@@ -8,3 +8,5 @@ export * from './verify.js';
 export * from './binding.js';
 export type * from './host.js';
 export * from './runner.js';
+export * from './escalate.js';
+export * from './vision.js';

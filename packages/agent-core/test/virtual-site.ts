@@ -47,6 +47,8 @@ export interface SiteBehaviour {
   websites?: Record<string, { status: number; finalUrl?: string; body: string }>;
   /** Result links open in a new tab (target="_blank"); the results tab itself does not change. */
   newTabResults?: boolean;
+  /** Results are image tiles: links with no accessible name or text (visual-only). */
+  imageResults?: boolean;
 }
 
 type Page = 'blank' | 'home' | 'results' | 'item';
@@ -69,6 +71,8 @@ export class VirtualSite implements AgentHost {
   readonly openedTabs_: Array<{ id: number; url: string }> = [];
   readonly adopted: number[] = [];
   challengeLeft = 0;
+  /** Screenshots taken for the visual fallback, with the privacy option each was taken with. */
+  readonly captures: Array<{ people: boolean }> = [];
 
   constructor(
     public origin: string,
@@ -236,6 +240,41 @@ export class VirtualSite implements AgentHost {
         }),
       );
     }
+    if (this.page === 'results' && this.behaviour.imageResults) {
+      nodes.push(
+        base({
+          nodeId: 'r1',
+          tag: 'a',
+          role: 'link',
+          name: null,
+          attributes: { href: '/item/1' },
+          bbox: { x: 100, y: 200, width: 200, height: 200 },
+        }),
+        base({
+          nodeId: 'img1',
+          tag: 'img',
+          role: 'img',
+          interactive: false,
+          bbox: { x: 120, y: 220, width: 160, height: 160 },
+        }),
+        base({
+          nodeId: 'r2',
+          tag: 'a',
+          role: 'link',
+          name: null,
+          attributes: { href: '/item/2' },
+          bbox: { x: 340, y: 200, width: 200, height: 200 },
+        }),
+        base({
+          nodeId: 'img2',
+          tag: 'img',
+          role: 'img',
+          interactive: false,
+          bbox: { x: 360, y: 220, width: 160, height: 160 },
+        }),
+      );
+      return nodes;
+    }
     if (this.page === 'results') {
       const words = this.query.split(' ');
       nodes.push(
@@ -374,6 +413,25 @@ export class VirtualSite implements AgentHost {
 
   async settle() {
     return this.probe();
+  }
+
+  /** The visible tab, "redacted" (a test image): records each capture. */
+  async captureVisible(_tabId: number, options: { people: boolean }) {
+    if (this.page === 'blank') return null;
+    this.captures.push(options);
+    return {
+      image: {
+        base64: 'iVBORw0KGgo=',
+        width: 1000,
+        height: 800,
+        redacted: true as const,
+        regions: this.behaviour.pii ? 1 : 0,
+      },
+      scale: 1,
+      scrollX: 0,
+      scrollY: 0,
+      ms: 1,
+    };
   }
 
   #title(): string {

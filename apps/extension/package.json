@@ -15,6 +15,7 @@
     "@techie-mind/browser": "0.1.0",
     "@techie-mind/config": "0.1.0",
     "@techie-mind/contracts": "0.1.0",
+    "@techie-mind/models": "0.1.0",
     "@techie-mind/perception": "0.1.0",
     "@techie-mind/privacy": "0.1.0",
     "@techie-mind/security": "0.1.0",

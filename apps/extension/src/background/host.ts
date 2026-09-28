@@ -1,11 +1,13 @@
-import type { AgentHost, TabContext } from '@techie-mind/agent-core';
+import type { AgentHost, TabContext, VisualCapture } from '@techie-mind/agent-core';
 import type { BrowserAdapter } from '@techie-mind/browser';
 import { gatedFetch, OutboundPrivacyGate, PrivacyGateError } from '@techie-mind/privacy';
+import { redactCapture } from './capture.js';
 import {
   ContentPong,
   ErrorResponse,
   ExecuteResponse,
   ObserveResponse,
+  PrivacyRegionsResponse,
   PrivacyScanResponse,
   ProbeResponse,
   WebsiteProbe,
@@ -283,6 +285,20 @@ export class ExtensionHost implements AgentHost {
       throw error;
     }
     return ProbeResponse.parse(await this.#send(tabId, { type: 'PROBE', elementId }));
+  }
+
+  /**
+   * Level 4 capture: sensitive regions are located inside the page (geometry only), the visible tab
+   * is captured and painted over locally — see capture.ts. Null when the tab is not visible.
+   */
+  async captureVisible(tabId: number, options: { people: boolean }): Promise<VisualCapture | null> {
+    await this.#ensureContent(tabId);
+    const regions = PrivacyRegionsResponse.parse(
+      await this.#send(tabId, { type: 'PRIVACY_REGIONS', people: options.people }),
+    );
+    const shot = await this.adapter.captureTab(tabId);
+    if (!shot) return null;
+    return redactCapture(shot, regions);
   }
 
   async scanPage(tabId: number): Promise<PrivacyScanResponse | null> {

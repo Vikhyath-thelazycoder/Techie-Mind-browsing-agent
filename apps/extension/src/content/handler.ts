@@ -7,7 +7,7 @@ import {
   probePage,
   type PageContext,
 } from '@techie-mind/perception';
-import { scanDocument } from '@techie-mind/privacy';
+import { scanDocument, sensitiveRegions } from '@techie-mind/privacy';
 import { countInjectionText } from '@techie-mind/security';
 
 export interface HandlerResult {
@@ -84,6 +84,26 @@ export function createContentHandler(
             textChars: scan.textChars,
             truncated: scan.truncated,
             ms: scan.ms,
+          },
+          deferred: null,
+        };
+      }
+      case 'PRIVACY_REGIONS': {
+        const started = performance.now();
+        const win = ctx.doc.defaultView;
+        return {
+          response: {
+            type: 'PRIVACY_REGIONS_RESULT',
+            documentId: ctx.documentId,
+            regions: sensitiveRegions(ctx.doc, { people: request.people }),
+            viewport: {
+              width: Math.max(1, win?.innerWidth ?? 1),
+              height: Math.max(1, win?.innerHeight ?? 1),
+              scrollX: win?.scrollX ?? 0,
+              scrollY: win?.scrollY ?? 0,
+              devicePixelRatio: win?.devicePixelRatio || 1,
+            },
+            ms: performance.now() - started,
           },
           deferred: null,
         };

@@ -1,5 +1,6 @@
 import { runTask, type AgentHost } from '@techie-mind/agent-core';
 import type { BrowserAdapter, Port } from '@techie-mind/browser';
+import type { Intelligence } from '@techie-mind/models';
 import { parseSettings, SETTINGS_STORAGE_KEY, type Settings } from '@techie-mind/config';
 import {
   HISTORY_LIMIT,
@@ -28,6 +29,8 @@ import {
 export function startTaskService(deps: {
   adapter: BrowserAdapter;
   host: AgentHost;
+  /** Model tiers for a task (Phase 3). Absent = code only. */
+  intelligence?: (settings: Settings) => Intelligence;
   logger: Logger;
   /** Tamper-evident persistent audit log shared by all tasks. */
   audit?: PersistentAuditLog;
@@ -117,7 +120,12 @@ export function startTaskService(deps: {
       maxSteps: settings.agent.maxSteps,
       skillId: null,
     });
-    const result = await runTask(task, { host: deps.host, logger, settings });
+    const result = await runTask(task, {
+      host: deps.host,
+      logger,
+      settings,
+      ...(deps.intelligence ? { intelligence: deps.intelligence(settings) } : {}),
+    });
     await deps.audit?.flush();
     await appendHistory(deps.adapter, redactResult(result));
     return result;

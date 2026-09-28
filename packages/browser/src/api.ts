@@ -76,6 +76,10 @@ export interface WebExtensionApi {
     create(props: { url: string; active?: boolean }): Promise<TabInfo>;
     update(tabId: number, props: { url?: string; active?: boolean }): Promise<TabInfo>;
     goBack(tabId: number): Promise<void>;
+    captureVisibleTab(
+      windowId: number,
+      options: { format: 'png' | 'jpeg'; quality?: number },
+    ): Promise<string>;
   };
   scripting?: {
     executeScript(injection: {

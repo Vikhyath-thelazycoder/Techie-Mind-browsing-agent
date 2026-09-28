@@ -24,9 +24,37 @@ export interface OutboundRequest {
   purpose: OutboundPurpose;
   url: string;
   method?: 'GET' | 'POST';
-  /** JSON body (POST) — null/undefined for GET. */
+  /** JSON body (POST) — null/undefined for GET. For `model`, the ModelRequest being sent. */
   payload?: unknown;
+  /**
+   * Provider wire body derived from `payload` (e.g. an Ollama chat request built from a
+   * ModelRequest). When present it is what is transmitted, and it is scanned exactly like the
+   * payload — deriving a wire format can never smuggle anything past the gate.
+   */
+  wire?: unknown;
+  /** Extra request headers — only `x-techie-mind-*` names (e.g. the local Laya adapter token). */
+  headers?: Record<string, string>;
+  /**
+   * Screenshots for visual grounding (Phase 4). Allowed only for a `visual-grounding` ModelRequest,
+   * only when produced by local redaction (`redacted: true`), bounded in size and count. The wire
+   * body refers to them as "<image:N>" placeholders; they are inserted only after every text check
+   * passed, so image bytes are never mistaken for text secrets and text is never hidden in them.
+   */
+  images?: RedactedImage[];
 }
+
+/** A screenshot after local redaction (sensitive regions painted over before it left the page host). */
+export interface RedactedImage {
+  base64: string;
+  width: number;
+  height: number;
+  redacted: true;
+  /** How many regions were painted over. */
+  regions: number;
+}
+
+const MAX_IMAGE_BASE64 = 4 * 1024 * 1024;
+const MAX_IMAGES = 1;
 
 export interface GateDecision {
   allowed: boolean;
@@ -114,13 +142,18 @@ export class OutboundPrivacyGate {
 
     // 1. serialize
     let body = '';
-    if (request.payload !== undefined && request.payload !== null) {
+    for (const part of [request.payload, request.wire]) {
+      if (part === undefined || part === null) continue;
       try {
-        body = JSON.stringify(request.payload);
+        body += `${body ? '\n' : ''}${JSON.stringify(part)}`;
       } catch {
         return block('serialize', ['payload is not plain JSON']);
       }
     }
+    const badHeader = Object.keys(request.headers ?? {}).find(
+      (name) => !/^x-techie-mind-[a-z-]{1,40}$/.test(name),
+    );
+    if (badHeader) return block('serialize', [`header "${badHeader}" is not allowed`]);
     const bytes = new TextEncoder().encode(body).length;
     if (bytes > MAX_PAYLOAD_BYTES) {
       return block('serialize', [`payload too large (${bytes} bytes)`], { bytes });
@@ -144,11 +177,38 @@ export class OutboundPrivacyGate {
     }
 
     // 4. sanitization — no raw page structures anywhere in the payload.
-    const raw = findRawKey(request.payload);
+    const raw = findRawKey(request.payload) ?? findRawKey(request.wire);
     if (raw) return block('sanitization', [`raw page data field "${raw}" in payload`], { bytes });
 
     // 5. schema
-    if (request.purpose === 'model' && !ModelRequest.safeParse(request.payload).success) {
+    // 5b. images — visual grounding only, locally redacted, bounded.
+    const images = request.images ?? [];
+    if (images.length > 0) {
+      const purpose = (request.payload as { purpose?: unknown } | null)?.purpose;
+      if (request.purpose !== 'model' || purpose !== 'visual-grounding') {
+        return block('schema', ['images are only sent for visual grounding'], { bytes });
+      }
+      if (images.length > MAX_IMAGES) return block('schema', ['too many images'], { bytes });
+      for (const image of images) {
+        if (image.redacted !== true) {
+          return block('sanitization', ['image was not locally redacted'], { bytes });
+        }
+        if (
+          typeof image.base64 !== 'string' ||
+          image.base64.length > MAX_IMAGE_BASE64 ||
+          !/^[A-Za-z0-9+/]+={0,2}$/.test(image.base64)
+        ) {
+          return block('serialize', ['image is not bounded base64'], { bytes });
+        }
+      }
+    }
+    const bodiless =
+      request.method !== 'POST' &&
+      (request.payload === undefined || request.payload === null) &&
+      (request.wire === undefined || request.wire === null);
+    if (request.purpose === 'model' && bodiless) {
+      // Health / model-list checks of a model endpoint carry nothing.
+    } else if (request.purpose === 'model' && !ModelRequest.safeParse(request.payload).success) {
       return block('schema', ['payload is not a ModelRequest'], { bytes });
     }
     if (
@@ -217,15 +277,26 @@ export async function gatedFetch(
   const decision = gate.inspect(request);
   if (!decision.allowed) throw new PrivacyGateError(decision);
   const post = request.method === 'POST';
+  const body = request.wire ?? request.payload;
+  let serialized = post ? JSON.stringify(body) : '';
+  (request.images ?? []).forEach((image, i) => {
+    serialized = serialized.replace(`"<image:${i}>"`, JSON.stringify(image.base64));
+  });
   return fetch(request.url, {
     method: post ? 'POST' : 'GET',
     credentials: 'omit',
     cache: 'no-store',
     redirect: 'follow',
     referrerPolicy: 'no-referrer',
-    ...(post
-      ? { body: JSON.stringify(request.payload), headers: { 'content-type': 'application/json' } }
+    ...(post || request.headers
+      ? {
+          headers: {
+            ...(post ? { 'content-type': 'application/json' } : {}),
+            ...(request.headers ?? {}),
+          },
+        }
       : {}),
+    ...(post ? { body: serialized } : {}),
     ...(init.signal ? { signal: init.signal } : {}),
   });
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Action } from './action.js';
 import { Observation } from './perception.js';
-import { Id, ShortText, Timestamp } from './primitives.js';
+import { BoundingBox, Id, ShortText, Timestamp } from './primitives.js';
 
 /**
  * Internal extension messaging protocol. Every message crossing a context boundary
@@ -118,6 +118,38 @@ export const PrivacyScanResponse = z.strictObject({
 });
 export type PrivacyScanResponse = z.infer<typeof PrivacyScanResponse>;
 
+/**
+ * Where sensitive content is on screen (Phase 4, visual privacy). Run inside the page right before a
+ * screenshot: the reply carries rectangles in viewport CSS pixels and counts — never text.
+ */
+export const PrivacyRegionsCommand = z.strictObject({
+  type: z.literal('PRIVACY_REGIONS'),
+  /** Also cover images that look like photos of people (settings: face blurring). */
+  people: z.boolean(),
+});
+
+export const PrivacyRegionsResponse = z.strictObject({
+  type: z.literal('PRIVACY_REGIONS_RESULT'),
+  documentId: Id,
+  regions: z
+    .array(
+      z.strictObject({
+        box: BoundingBox,
+        reason: z.enum(['text', 'field', 'person']),
+      }),
+    )
+    .max(500),
+  viewport: z.strictObject({
+    width: z.number().positive(),
+    height: z.number().positive(),
+    scrollX: z.number().finite(),
+    scrollY: z.number().finite(),
+    devicePixelRatio: z.number().positive(),
+  }),
+  ms: z.number().nonnegative(),
+});
+export type PrivacyRegionsResponse = z.infer<typeof PrivacyRegionsResponse>;
+
 export const ProbeResponse = z.strictObject({
   type: z.literal('PROBE_RESULT'),
   url: z.string().max(2048),
@@ -152,6 +184,7 @@ export const ContentRequest = z.discriminatedUnion('type', [
   ExecuteCommand,
   ProbeCommand,
   PrivacyScanCommand,
+  PrivacyRegionsCommand,
 ]);
 export type ContentRequest = z.infer<typeof ContentRequest>;
 
@@ -161,6 +194,7 @@ export const ContentResponse = z.union([
   ExecuteResponse,
   ProbeResponse,
   PrivacyScanResponse,
+  PrivacyRegionsResponse,
   ErrorResponse,
 ]);
 export type ContentResponse = z.infer<typeof ContentResponse>;

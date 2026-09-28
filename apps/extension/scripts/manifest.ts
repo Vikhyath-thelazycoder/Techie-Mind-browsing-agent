@@ -28,7 +28,13 @@ export const EXTENSION_PAGES_CSP = "script-src 'self'; object-src 'self'; base-u
  * ON DEMAND into the one tab the agent is working in (Phase 1); nothing runs in ordinary browsing.
  */
 const COMMON_PERMISSIONS = ['storage', 'tabs', 'scripting'] as const;
-export const HOST_PERMISSIONS = ['http://*/*', 'https://*/*'] as const;
+/**
+ * `<all_urls>` rather than http/https patterns: Chrome and Firefox allow `tabs.captureVisibleTab`
+ * (the Phase 4 visual fallback) only with it. The agent still scripts http(s) pages only — every
+ * injection and navigation path checks `isWebUrl` — and file:// stays behind the browser's own
+ * per-extension toggle, which Techie Mind never asks for.
+ */
+export const HOST_PERMISSIONS = ['<all_urls>'] as const;
 
 export function buildManifest(target: Target, version: string): Record<string, unknown> {
   const common = {
