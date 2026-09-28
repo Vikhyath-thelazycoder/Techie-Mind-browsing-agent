@@ -271,9 +271,90 @@ function visualSite(url: URL): string {
   return page('VisualShop', `${header}<main><h1>Welcome</h1></main>`);
 }
 
+/**
+ * 13 — Phase 5 store: priced result cards built with divs, struck-through old prices, a product page
+ * with "Add to cart" (the header cart count updates in script) and "Buy now", a cart page whose
+ * checkout button leads to payment, a delivery-address form and a news article.
+ */
+const STORE_PRODUCTS: Array<[string, number, number, number]> = [
+  ['Dell Inspiron 15 laptop', 58990, 69990, 4.1],
+  ['HP 255 G9 laptop', 34990, 44000, 3.9],
+  ['Lenovo IdeaPad Slim 3 laptop', 45490, 52000, 4.4],
+  ['ASUS Vivobook 16 laptop', 52990, 61000, 4.0],
+];
+
+function storeSite(url: URL): string {
+  const q = url.searchParams.get('q') ?? '';
+  const count = `<span id="cart-count">0</span>`;
+  const header = `<header><a href="/">StoreKart</a><form role="search" action="/search"><input type="search" name="q" aria-label="Search for products" value="${esc(q)}"><button type="submit">Search</button></form><a id="cart-link" href="/cart">Cart ${count}</a></header>`;
+  const cartScript = `const n=Number(sessionStorage.getItem('cart')||0);document.getElementById('cart-count').textContent=n;`;
+  if (url.pathname === '/search') {
+    const cards = STORE_PRODUCTS.map(
+      ([title, price, old, rating], i) =>
+        `<div class="card" style="display:inline-block;width:260px;margin:8px;vertical-align:top"><a href="/p/${i + 1}">${esc(title)}</a><div><s>₹${old.toLocaleString('en-IN')}</s> <b>₹${price.toLocaleString('en-IN')}</b></div><span>${rating} ★</span></div>`,
+    ).join('');
+    return page(`${q} - StoreKart`, `${header}<main><h1>Results for ${esc(q)}</h1><div class="grid">${cards}</div><div style="height:2400px"></div></main>`, cartScript);
+  }
+  if (url.pathname.startsWith('/p/')) {
+    const i = Number(url.pathname.slice(3)) - 1;
+    const [title, price] = STORE_PRODUCTS[i] ?? STORE_PRODUCTS[0]!;
+    return page(
+      `${title} - StoreKart`,
+      `${header}<main><h1>${esc(title)}</h1><p>₹${price.toLocaleString('en-IN')}</p><button id="add">Add to cart</button> <button id="buy">Buy now</button><p id="msg" role="status"></p></main>`,
+      `${cartScript}document.getElementById('add').onclick=()=>{const n=Number(sessionStorage.getItem('cart')||0)+1;sessionStorage.setItem('cart',n);document.getElementById('cart-count').textContent=n;document.getElementById('msg').textContent='Added to cart';};document.getElementById('buy').onclick=()=>{location.href='/checkout/payment'};`,
+    );
+  }
+  if (url.pathname === '/cart') {
+    return page('Your cart - StoreKart', `${header}<main><h1>Shopping cart</h1><button id="checkout">Proceed to checkout</button></main>`, `${cartScript}document.getElementById('checkout').onclick=()=>{location.href='/checkout/payment'};`);
+  }
+  if (url.pathname.startsWith('/checkout')) {
+    return page('Payment - StoreKart', `<main><h1>Pay now</h1><label>Card number <input name="card" autocomplete="cc-number"></label></main>`);
+  }
+  if (url.pathname === '/address') {
+    return page(
+      'Delivery address - StoreKart',
+      `${header}<main><h1>Delivery address</h1><form id="addr">
+<label>Full name <input name="fullname" autocomplete="name"></label>
+<label>Email <input type="email" name="email" autocomplete="email"></label>
+<label>Mobile number <input type="tel" name="mobile"></label>
+<label>Address <input name="address1"></label>
+<label>City <input name="city"></label>
+<label>State <select name="state"><option value="">Select</option><option>Karnataka</option><option>Kerala</option></select></label>
+<label>PIN code <input name="pin"></label>
+<label>Company <input name="company"></label>
+<label>Password <input type="password" name="password"></label>
+<button type="submit" id="save">Save address</button></form></main>`,
+      `document.getElementById('addr').onsubmit=(e)=>{e.preventDefault();document.title='SUBMITTED';};`,
+    );
+  }
+  if (url.pathname === '/news') {
+    return page(
+      'Monsoon arrives in Kerala - StoreKart News',
+      `${header}<main><article><h1>Monsoon arrives in Kerala</h1><p>The south-west monsoon reached the Kerala coast on Thursday, three days ahead of the usual date. Forecasters expect normal rainfall this season.</p><p>Farmers welcomed the early onset, which helps the sowing of kharif crops across the southern states.</p><p>For updates, write to ${SYNTHETIC_PII.email} or call ${SYNTHETIC_PII.phone}.</p></article></main>`,
+    );
+  }
+  return page('StoreKart', `${header}<main><h1>Deals</h1></main>`, cartScript);
+}
+
+/**
+ * 14 — A video site that behaves like YouTube: results are opened in-page (history.pushState), and
+ * the player starts WITH SOUND only if the page has had a real user gesture (Chrome's autoplay rule).
+ */
+function tubeSite(url: URL): string {
+  const q = url.searchParams.get('q') ?? '';
+  const header = `<header role="banner"><a href="/">SoundTube</a><form action="/results"><input name="q" aria-label="Search" value="${esc(q)}"><button>Search</button></form></header>`;
+  const script = `document.querySelectorAll('a.result').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();history.pushState({}, '', a.getAttribute('href'));document.title='Now playing - SoundTube';document.querySelector('main').innerHTML='<h1>Now playing</h1><video id="m" src="/media/tone.wav" loop controls width="640" height="360"></video>';const v=document.getElementById('m');v.play().then(()=>{document.body.dataset.played='yes'}).catch(()=>{document.body.dataset.played='blocked'});}));`;
+  if (url.pathname === '/results') {
+    return page(`${q} - SoundTube`, `${header}<main>${resultsList(q, '/watch?v=')}</main>`, script);
+  }
+  return page('SoundTube', `${header}<main><h1>Home</h1></main>`);
+}
+
 const SITES: Record<string, (url: URL) => string> = {
   'newtab.fixture.test': newTabSite,
   'visual.fixture.test': visualSite,
+  'store.fixture.test': storeSite,
+  'tube.fixture.test': tubeSite,
   'form.fixture.test': formSite,
   'spa.fixture.test': spaSite,
   'toggle.fixture.test': toggleSite,

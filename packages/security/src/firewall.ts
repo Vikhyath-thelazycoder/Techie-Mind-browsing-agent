@@ -6,7 +6,7 @@ import {
   type Observation,
   type ProbeResponse,
 } from '@techie-mind/contracts';
-import { detectText } from '@techie-mind/privacy';
+import { detectField, detectText } from '@techie-mind/privacy';
 import { atLeast, classifyRisk, type RiskAssessment, type RiskClass } from './risk.js';
 
 /**
@@ -50,7 +50,7 @@ export interface FirewallContext {
   confirmAt: 'MEDIUM' | 'HIGH' | 'CRITICAL';
   now: number;
   /** Local vault lookups (tokens only — never values). */
-  vault?: { has(token: string): boolean } | null;
+  vault?: { has(token: string): boolean; kindOf?(token: string): string | null } | null;
   /** Oldest acceptable observation. */
   maxObservationAgeMs?: number;
   /** When the runtime received the observation (its own clock); defaults to observation.createdAt. */
@@ -136,6 +136,9 @@ const RISK_OF_SETTING: Record<FirewallContext['confirmAt'], RiskClass> = {
   HIGH: 'HIGH',
   CRITICAL: 'HUMAN_REQUIRED',
 };
+
+/** Kinds a saved profile holds (see UserProfile); only these may be filled from the vault. */
+const PROFILE_KINDS = new Set(['name', 'email', 'phone', 'address', 'pin_code']);
 
 const DEFAULT_MAX_AGE_MS = 120_000;
 
@@ -225,6 +228,19 @@ export class ActionFirewall {
     // 7. risk
     risk = classifyRisk(action, target);
     if (risk.level === 'BLOCKED') return deny('risk', risk.reasons.join('; '));
+    // The user's own saved profile value, typed through a vault token into a field of the same kind
+    // ("fill this form with my profile"), is the user's request — not the agent volunteering data.
+    // Passwords, OTPs and cards were classified above and never reach this.
+    if (
+      risk.level === 'HIGH' &&
+      action.args.type === 'TYPE' &&
+      'vaultToken' in action.args.input &&
+      target &&
+      PROFILE_KINDS.has(ctx.vault?.kindOf?.(action.args.input.vaultToken) ?? "other") &&
+      detectField(target)?.kind === ctx.vault?.kindOf?.(action.args.input.vaultToken)
+    ) {
+      risk = { ...risk, level: 'MEDIUM', reasons: ['your saved profile value for this field'] };
+    }
     pass('risk');
 
     // 8. privacy — the agent never types personal data the user did not give it.

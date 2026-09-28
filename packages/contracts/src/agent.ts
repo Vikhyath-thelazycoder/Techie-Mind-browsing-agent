@@ -63,6 +63,15 @@ export const GoalKind = z.enum([
   'search',
   'open-result',
   'open-element',
+  'extract',
+  'pick-item',
+  'scroll',
+  'history',
+  'add-to-cart',
+  'checkout',
+  'fill-form',
+  'summarize',
+  'skill',
 ]);
 export type GoalKind = z.infer<typeof GoalKind>;
 
@@ -128,6 +137,45 @@ export const NavigationDecision = z.strictObject({
 });
 export type NavigationDecision = z.infer<typeof NavigationDecision>;
 
+/**
+ * What a task produced for the user besides its actions (Phase 5/6): a summary, extracted items, a
+ * comparison table or a short list. Page-derived text is redacted before it is stored in history.
+ */
+export const TaskOutput = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('text'),
+    title: z.string().max(200),
+    text: z.string().max(8000),
+    /** How it was produced: a model, or local extraction only. */
+    source: z.enum(['model', 'extractive']),
+  }),
+  z.strictObject({
+    kind: z.literal('items'),
+    title: z.string().max(200),
+    items: z
+      .array(
+        z.strictObject({
+          title: z.string().max(300),
+          price: z.number().nonnegative().nullable(),
+          currency: z.string().max(8).nullable(),
+          rating: z.number().min(0).max(5).nullable(),
+          /** Origin + path only (no query string). */
+          url: z.string().max(2048).nullable(),
+          source: z.string().max(253).nullable(),
+        }),
+      )
+      .max(60),
+    /** Items seen before constraints were applied. */
+    total: z.number().int().nonnegative(),
+  }),
+  z.strictObject({
+    kind: z.literal('list'),
+    title: z.string().max(200),
+    entries: z.array(z.string().max(500)).max(100),
+  }),
+]);
+export type TaskOutput = z.infer<typeof TaskOutput>;
+
 /** What the privacy engine and firewall did during a task — counts only, never values. */
 export const PrivacySummary = z.strictObject({
   scans: z.number().int().nonnegative(),
@@ -152,6 +200,8 @@ export const TaskResult = z.strictObject({
   privacy: PrivacySummary.nullable().default(null),
   /** Every model call of the task, in order (Phase 3). Empty when code handled everything. */
   models: z.array(ModelUsage).max(20).default([]),
+  /** What the task produced for the user (Phase 5/6); null when it only acted. */
+  output: TaskOutput.nullable().default(null),
   steps: z.array(StepReport).max(50),
   timings: StageTimings,
   tabId: z.number().int().nonnegative().nullable(),

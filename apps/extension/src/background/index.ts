@@ -8,6 +8,7 @@ import {
 } from '@techie-mind/telemetry';
 import { getPlatform } from '../platform.js';
 import { createBackgroundHandler } from './handler.js';
+import { createBrowserData, type BrowserDataApi } from './browser-data.js';
 import { ExtensionHost } from './host.js';
 import { intelligenceFor } from './models.js';
 import { startTaskService } from './tasks.js';
@@ -27,7 +28,7 @@ const audit = new PersistentAuditLog({
 });
 startTaskService({
   adapter,
-  host: new ExtensionHost(adapter),
+  host: new ExtensionHost(adapter, createBrowserData(chrome as unknown as BrowserDataApi, adapter)),
   logger,
   audit,
   intelligence: intelligenceFor,

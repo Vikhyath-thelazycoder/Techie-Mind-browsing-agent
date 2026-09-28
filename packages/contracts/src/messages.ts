@@ -67,7 +67,16 @@ export const ObserveResponse = z.strictObject({
 export type ObserveResponse = z.infer<typeof ObserveResponse>;
 
 /** Execute one bound, validated action. The content script re-validates binding and schema. */
-export const ExecuteCommand = z.strictObject({ type: z.literal('EXECUTE'), action: Action });
+export const ExecuteCommand = z.strictObject({
+  type: z.literal('EXECUTE'),
+  action: Action,
+  /**
+   * The value of the action's vault token (TYPE with `vaultToken`), resolved by the background at the
+   * last hop so the Action itself never carries personal data. The page is the user's own
+   * destination for it; it is never logged.
+   */
+  resolved: z.strictObject({ vaultToken: z.string().max(40), text: z.string().max(2000) }).optional(),
+});
 
 export const ExecuteRejection = z.enum([
   'INVALID_ACTION',
@@ -150,6 +159,64 @@ export const PrivacyRegionsResponse = z.strictObject({
 });
 export type PrivacyRegionsResponse = z.infer<typeof PrivacyRegionsResponse>;
 
+// ── Phase 5: extraction and trusted input ─────────────────────────────────────────────────────
+
+/** One repeated item on a results/listing page (a product card, a search hit). */
+export const ExtractedItem = z.strictObject({
+  /** The item's link element (registry id), so it can be opened like any grounded element. */
+  elementId: Id,
+  title: z.string().max(300),
+  price: z.number().nonnegative().nullable(),
+  currency: z.enum(['INR', 'USD', 'EUR', 'GBP']).nullable(),
+  rating: z.number().min(0).max(5).nullable(),
+  /** 1-based position in reading order. */
+  position: z.number().int().positive(),
+});
+export type ExtractedItem = z.infer<typeof ExtractedItem>;
+
+export const ExtractItemsCommand = z.strictObject({ type: z.literal('EXTRACT_ITEMS') });
+export const ExtractItemsResponse = z.strictObject({
+  type: z.literal('ITEMS_RESULT'),
+  documentId: Id,
+  items: z.array(ExtractedItem).max(100),
+  ms: z.number().nonnegative(),
+});
+export type ExtractItemsResponse = z.infer<typeof ExtractItemsResponse>;
+
+/** Main readable content of the page (for summaries). Stays local until redacted. */
+export const ExtractTextCommand = z.strictObject({ type: z.literal('EXTRACT_TEXT') });
+export const ExtractTextResponse = z.strictObject({
+  type: z.literal('TEXT_RESULT'),
+  documentId: Id,
+  title: z.string().max(512),
+  headings: z.array(z.string().max(300)).max(40),
+  paragraphs: z.array(z.string().max(2000)).max(200),
+  /** Data tables on the page (first rows only). */
+  tables: z
+    .array(
+      z.strictObject({
+        headers: z.array(z.string().max(200)).max(30),
+        rows: z.array(z.array(z.string().max(500)).max(30)).max(200),
+      }),
+    )
+    .max(10)
+    .default([]),
+  truncated: z.boolean(),
+  ms: z.number().nonnegative(),
+});
+export type ExtractTextResponse = z.infer<typeof ExtractTextResponse>;
+
+/** Where a bound element is on screen right now (for a trusted click at its centre). */
+export const ElementRectCommand = z.strictObject({ type: z.literal('ELEMENT_RECT'), elementId: Id });
+export const ElementRectResponse = z.strictObject({
+  type: z.literal('ELEMENT_RECT_RESULT'),
+  documentId: Id,
+  visible: z.boolean(),
+  /** Viewport CSS pixels, after scrolling the element into view. */
+  rect: BoundingBox.nullable(),
+});
+export type ElementRectResponse = z.infer<typeof ElementRectResponse>;
+
 export const ProbeResponse = z.strictObject({
   type: z.literal('PROBE_RESULT'),
   url: z.string().max(2048),
@@ -185,6 +252,9 @@ export const ContentRequest = z.discriminatedUnion('type', [
   ProbeCommand,
   PrivacyScanCommand,
   PrivacyRegionsCommand,
+  ExtractItemsCommand,
+  ExtractTextCommand,
+  ElementRectCommand,
 ]);
 export type ContentRequest = z.infer<typeof ContentRequest>;
 
@@ -195,6 +265,9 @@ export const ContentResponse = z.union([
   ProbeResponse,
   PrivacyScanResponse,
   PrivacyRegionsResponse,
+  ExtractItemsResponse,
+  ExtractTextResponse,
+  ElementRectResponse,
   ErrorResponse,
 ]);
 export type ContentResponse = z.infer<typeof ContentResponse>;

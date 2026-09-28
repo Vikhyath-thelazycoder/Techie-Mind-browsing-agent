@@ -77,6 +77,12 @@ export interface BrowserAdapter {
    * window (the browser can only capture visible tabs).
    */
   captureTab(tabId: number): Promise<string | null>;
+  goForward(tabId: number): Promise<void>;
+  /**
+   * A trusted left click at viewport CSS coordinates (Chrome: DevTools protocol Input events while
+   * briefly attached). False when the browser offers no trusted input or attaching failed.
+   */
+  trustedClickAt(tabId: number, x: number, y: number): Promise<boolean>;
   /** Inject a bundled extension script (path inside the package) into a tab's top frame. */
   injectScript(tabId: number, file: string): Promise<void>;
   /** Accept long-lived connections on a named channel. */
@@ -187,6 +193,33 @@ export function createAdapter(kind: BrowserKind, api: WebExtensionApi): BrowserA
     },
 
     goBack: (tabId) => api.tabs.goBack(tabId),
+
+    async goForward(tabId) {
+      if (!api.tabs.goForward) throw new Error('going forward is not supported by this browser');
+      await api.tabs.goForward(tabId);
+    },
+
+    async trustedClickAt(tabId, x, y) {
+      const dbg = api.debugger;
+      if (!dbg) return false;
+      const target = { tabId };
+      try {
+        await dbg.attach(target, '1.3');
+      } catch {
+        return false; // DevTools already attached, or the page may not be debugged
+      }
+      try {
+        const base = { x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 };
+        await dbg.sendCommand(target, 'Input.dispatchMouseEvent', { ...base, type: 'mouseMoved' });
+        await dbg.sendCommand(target, 'Input.dispatchMouseEvent', { ...base, type: 'mousePressed' });
+        await dbg.sendCommand(target, 'Input.dispatchMouseEvent', { ...base, type: 'mouseReleased' });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        await dbg.detach(target).catch(() => undefined);
+      }
+    },
 
     async captureTab(tabId) {
       try {

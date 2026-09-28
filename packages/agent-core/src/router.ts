@@ -65,7 +65,21 @@ export type NavigationDecisionResult =
     };
 
 const SEARCH_ACTIONS = new Set(['search', 'search_and_play', 'search_and_open']);
-const RESULT_ACTIONS = new Set(['play_result', 'open_result', 'open_element', 'play_element']);
+const RESULT_ACTIONS = new Set([
+  'play_result',
+  'open_result',
+  'open_element',
+  'play_element',
+  // Phase 5 page commands: they act on the page already open.
+  'pick_item',
+  'scroll',
+  'go_back',
+  'go_forward',
+  'add_to_cart',
+  'checkout',
+  'fill_form',
+  'summarize',
+]);
 
 /** True when the decision depends on what the open page can do (needs one observation). */
 export function needsContextFit(profile: IntentProfile, context: TabContext | null): boolean {
@@ -93,7 +107,7 @@ function hereTarget(context: TabContext): Target {
   });
 }
 
-function siteTarget(domain: string, reason: Target['reason']): Target {
+export function siteTarget(domain: string, reason: Target["reason"]): Target {
   const site = siteForDomain(domain);
   return Target.parse({
     domain: site?.domain ?? domain,
@@ -200,7 +214,12 @@ export function decideNavigation(
       return {
         ok: false,
         code: 'NO_RESULTS_CONTEXT',
-        message: 'There is no open web page with results to choose from.',
+        message:
+          profile.action === 'play_result' ||
+          profile.action === 'open_result' ||
+          profile.action === 'pick_item'
+            ? 'There is no open web page with results to choose from.'
+            : 'There is no open web page to do that on. Open the page first.',
       };
     }
     return reuse('CURRENT_PAGE', `pick from the results on ${context.host}`);

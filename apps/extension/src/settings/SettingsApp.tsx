@@ -1,6 +1,14 @@
 import type { BrowserAdapter } from '@techie-mind/browser';
 import { PRODUCT_NAME, resolveActiveModel, type Settings } from '@techie-mind/config';
-import { HealthRequest, HealthResponse, SkillId } from '@techie-mind/contracts';
+import {
+  EMPTY_PROFILE,
+  HealthRequest,
+  HealthResponse,
+  SkillId,
+  UserProfile,
+  type ProfileField,
+} from '@techie-mind/contracts';
+import { clearProfile, loadProfile, saveProfile } from '../shared/profile-store.js';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
@@ -90,7 +98,7 @@ export function SettingsApp({ adapter }: { adapter: BrowserAdapter }) {
         {loaded && section === 'models' ? <ModelsSection {...props} /> : null}
         {loaded && section === 'privacy' ? <PrivacySection {...props} /> : null}
         {loaded && section === 'research' ? <ResearchSection {...props} /> : null}
-        {loaded && section === 'profile' ? <ProfileSection /> : null}
+        {loaded && section === 'profile' ? <ProfileSection adapter={props.adapter} /> : null}
         {loaded && section === 'skills' ? <SkillsSection /> : null}
         {loaded && section === 'export' ? <ExportSection {...props} /> : null}
         {loaded && section === 'diagnostics' ? <DiagnosticsSection adapter={adapter} /> : null}
@@ -527,20 +535,80 @@ function ResearchSection({ adapter, settings }: SectionProps) {
   );
 }
 
-function ProfileSection() {
+const PROFILE_LABELS: Array<[ProfileField, string, string]> = [
+  ['fullName', 'Full name', 'name'],
+  ['email', 'Email', 'email'],
+  ['phone', 'Phone', 'tel'],
+  ['addressLine1', 'Address line 1', 'address-line1'],
+  ['addressLine2', 'Address line 2', 'address-line2'],
+  ['city', 'City', 'address-level2'],
+  ['state', 'State', 'address-level1'],
+  ['postalCode', 'PIN code', 'postal-code'],
+  ['country', 'Country', 'country-name'],
+];
+
+function ProfileSection({ adapter }: { adapter: BrowserAdapter }) {
+  const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
+  const [status, setStatus] = useState<string>('');
+  useEffect(() => {
+    void loadProfile(adapter).then((p) => p && setProfile(p));
+  }, [adapter]);
+  const onSave = async () => {
+    const parsed = UserProfile.safeParse(profile);
+    if (!parsed.success) {
+      setStatus('Not saved — a value is too long');
+      return;
+    }
+    try {
+      await saveProfile(adapter, parsed.data);
+      setStatus('Saved (encrypted on this device)');
+    } catch (error) {
+      setStatus(`Not saved — ${error instanceof Error ? error.message : 'error'}`);
+    }
+  };
+  const onClear = async () => {
+    await clearProfile(adapter);
+    setProfile(EMPTY_PROFILE);
+    setStatus('Profile removed');
+  };
   return (
     <>
       <PageHeader
         title="User Profile"
-        subtitle="Saved personal details used for form filling and repeated browser tasks."
+        subtitle={'Saved personal details used for form filling ("fill this form with my profile").'}
       />
-      <Card icon="lock" title="Stored in the local token vault">
-        <p class="tm-muted">
-          Your name, email, phone and address are personal data. They will be kept in an encrypted
-          local vault and exposed to models only as tokens such as <code>PHONE_001</code> — never as
-          raw values. The vault and profile editor are implemented in Phase 2.
+      <Card
+        icon="lock"
+        title="Encrypted on this device"
+        subtitle="AES-GCM with a key that never leaves this browser. Models only ever see tokens like PHONE_001; the agent never submits a form for you."
+      >
+        {PROFILE_LABELS.map(([field, label, autocomplete]) => (
+          <Field key={field} label={label} htmlFor={`profile-${field}`}>
+            <input
+              id={`profile-${field}`}
+              class="tm-text"
+              data-testid={`profile-${field}`}
+              autocomplete={autocomplete}
+              value={profile[field]}
+              onInput={(e) => setProfile({ ...profile, [field]: inputValue(e) })}
+            />
+          </Field>
+        ))}
+        <p class="tm-note">
+          Passwords, OTPs and card details are never stored here and never filled by the agent.
         </p>
       </Card>
+      <div class="tm-savebar">
+        <span role="status" data-testid="profile-status">
+          {status}
+        </span>
+        <button type="button" class="tm-btn-outline" onClick={() => void onClear()}>
+          Remove profile
+        </button>
+        <button type="button" class="tm-btn-save" data-testid="save-profile" onClick={() => void onSave()}>
+          Save Profile
+        </button>
+      </div>
     </>
   );
 }

@@ -1,12 +1,60 @@
 import type {
   Action,
   ExecuteResponse,
+  ExtractItemsResponse,
+  ExtractTextResponse,
+  UserProfile,
   Observation,
   PrivacyScanResponse,
   ProbeResponse,
   WebsiteProbe,
 } from '@techie-mind/contracts';
+import type { Monitor } from '@techie-mind/contracts';
 import type { RedactedImage } from '@techie-mind/privacy';
+
+/** Browser data the skills work with (Phase 6). URLs are stored without query strings. */
+export interface BookmarkEntry {
+  id: string;
+  url: string;
+  title: string;
+}
+export interface TabEntry {
+  id: number;
+  url: string;
+  title: string;
+  pinned: boolean;
+  active: boolean;
+  windowId: number;
+}
+export interface SavedPage {
+  url: string;
+  title: string;
+  savedAt: number;
+}
+export interface BrowserData {
+  bookmarks: {
+    search(query: string): Promise<BookmarkEntry[]>;
+    add(entry: { url: string; title: string }): Promise<BookmarkEntry>;
+    remove(id: string): Promise<void>;
+  };
+  tabs: {
+    list(): Promise<TabEntry[]>;
+    /** Group tabs under a title; false when the browser has no tab groups. */
+    group(tabIds: number[], title: string): Promise<boolean>;
+    close(tabIds: number[]): Promise<void>;
+  };
+  readLater: {
+    add(page: SavedPage): Promise<void>;
+    list(): Promise<SavedPage[]>;
+    remove(url: string): Promise<boolean>;
+  };
+  monitors: {
+    add(monitor: Monitor): Promise<void>;
+    list(): Promise<Monitor[]>;
+  };
+  /** Hand a file to the browser's download manager (text, or base64 for binary). */
+  download(file: { name: string; mime: string; content: string; base64?: boolean }): Promise<boolean>;
+}
 import type { TabContext } from './router.js';
 
 /** The visible tab after local redaction (Phase 4). The raw screenshot never leaves the host. */
@@ -61,7 +109,15 @@ export interface AgentHost {
     options: { since: ProbeResponse | null; timeoutMs: number },
   ): Promise<ProbeResponse | null>;
   observe(tabId: number, taskId: string, observationId: string): Promise<Observation>;
-  execute(tabId: number, action: Action): Promise<ExecuteResponse>;
+  /**
+   * Execute a bound action. `resolved` carries the value of a TYPE action's vault token, resolved
+   * by the runner after the firewall authorized the action (the Action itself never holds it).
+   */
+  execute(
+    tabId: number,
+    action: Action,
+    resolved?: { vaultToken: string; text: string },
+  ): Promise<ExecuteResponse>;
   probe(tabId: number, elementId: string | null): Promise<ProbeResponse | null>;
   /**
    * Whole-page privacy scan run inside the page (counts only). Optional: hosts without it fall
@@ -73,5 +129,30 @@ export interface AgentHost {
    * detectors flag, sensitive fields, and — with `people` — images of people). Optional: hosts
    * without it have no visual fallback. Null when the tab cannot be captured (not visible).
    */
-  captureVisible?(tabId: number, options: { people: boolean }): Promise<VisualCapture | null>;
+  captureVisible?(
+    tabId: number,
+    options: {
+      people: boolean;
+      /** Numbered boxes drawn on the redacted image (screenshot walkthrough), page CSS pixels. */
+      marks?: Array<{ box: { x: number; y: number; width: number; height: number }; label: string }>;
+    },
+  ): Promise<VisualCapture | null>;
+  /** Phase 6: bookmarks, tabs, read-later, monitors and downloads for the skills. */
+  browserData?: BrowserData | undefined;
+  /** Phase 5: repeated items (title, price, link element) on the page, extracted in the page. */
+  extractItems?(tabId: number): Promise<ExtractItemsResponse | null>;
+  /** Phase 5: main readable text of the page (stays local until redacted by the runner). */
+  extractText?(tabId: number): Promise<ExtractTextResponse | null>;
+  /**
+   * Phase 5: a trusted (browser-level) click at the centre of a bound element — used for media so
+   * playback may start with sound. Only after the firewall authorized the same CLICK action.
+   * Resolves false when trusted input is not available (then the normal click is used).
+   */
+  trustedClick?(tabId: number, elementId: string): Promise<boolean>;
+  /** The page this tab showed before its current one, as seen by the agent (same session). */
+  previousUrl?(tabId: number): Promise<string | null>;
+  /** Browser-level history forward. */
+  goForward?(tabId: number): Promise<void>;
+  /** Phase 5: the user's saved profile, decrypted locally; null when none is saved. */
+  loadProfile?(): Promise<UserProfile | null>;
 }

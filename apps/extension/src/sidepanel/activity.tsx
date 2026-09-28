@@ -156,8 +156,50 @@ export function ResultCard({ result }: { result: TaskResult }) {
           </li>
         ))}
       </ul>
+      {result.output ? <OutputView output={result.output} /> : null}
       {result.error ? <p class="tm-plan-problem">{result.error.message}</p> : null}
     </section>
+  );
+}
+
+function money(price: number | null, currency: string | null): string {
+  if (price === null) return '';
+  const symbol = currency === 'INR' ? '₹' : currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '';
+  return `${symbol}${price.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US')}`;
+}
+
+/** What the task produced: extracted items, a summary or a list (Phase 5/6). */
+function OutputView({ output }: { output: NonNullable<TaskResult['output']> }) {
+  return (
+    <div class="tm-output" data-testid="result-output" data-kind={output.kind}>
+      <strong>{output.title}</strong>
+      {output.kind === 'text' ? (
+        <>
+          <p class="tm-output-text">{output.text}</p>
+          <small class="tm-muted">
+            {output.source === 'model' ? 'Written by your local model from redacted text' : 'Taken from the page (no model)'}
+          </small>
+        </>
+      ) : null}
+      {output.kind === 'items' ? (
+        <ol class="tm-output-items">
+          {output.items.map((item, i) => (
+            <li key={i}>
+              <span>{item.title}</span>
+              {item.price !== null ? <b>{money(item.price, item.currency)}</b> : null}
+              {item.rating !== null ? <small>★ {item.rating}</small> : null}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      {output.kind === 'list' ? (
+        <ul class="tm-output-list">
+          {output.entries.map((entry, i) => (
+            <li key={i}>{entry}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
