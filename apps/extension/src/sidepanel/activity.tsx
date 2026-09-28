@@ -44,7 +44,9 @@ export function PlanCard(props: { preview: PlanPreview; onRun: () => void; onCan
         </ol>
       )}
       <p class="tm-plan-meta">
-        {preview.intent.intent} · {preview.intent.language} · deterministic · 0 model calls
+        {preview.needsModel
+          ? `${preview.intent.language} · code unsure — the local AI decides when you run it`
+          : `${preview.intent.intent} · ${preview.intent.language} · deterministic · 0 model calls`}
       </p>
       <div class="tm-plan-actions">
         <button type="button" class="tm-btn-ghost" onClick={props.onCancel}>

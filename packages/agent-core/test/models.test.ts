@@ -114,16 +114,24 @@ describe('model routing — which requests reach a model', () => {
       'Open Flipkart iPhone',
       'play the second result',
       'scroll down',
+      // Plain name-like queries: code is sure (on the Mac a model round-trip cost 4–6 s).
+      'iphone 15',
+      'samsung phones',
+      'laptops with 16GB RAM',
     ]) {
       expect(needsModel(resolveIntent(s).profile), s).toBe(false);
     }
     for (const s of [
       'open the samsung one',
+      '“now open the samsung one”', // pasted with quotes: same reading
       'I want to hear something by Arijit Singh',
-      'iphone 15',
+      'something cheaper than this',
+      'make the text bigger please',
+      'hmm not sure',
     ]) {
       expect(needsModel(resolveIntent(s).profile), s).toBe(true);
     }
+    expect(resolveIntent('“now open the samsung one”').profile.siteName).toBeNull();
   });
 
   it('0 model calls for a confident command, even with models configured', async () => {
@@ -141,12 +149,24 @@ describe('model routing — which requests reach a model', () => {
 describe('model routing — runner (Code → Laya → model → ask)', () => {
   beforeEach(() => clearResolutionCache());
 
-  it('Laya confirms a bare follow-up query: searched on the open site, no 7B call', async () => {
+  it('a plain bare follow-up query is searched on the open site with no model call', async () => {
     const ai = new FakeIntelligence(LAYA_SEARCH, null);
     const site = results('phones');
     const { result } = await run(site, 'iphone 15', ai);
     expect(result.status).toBe('COMPLETED');
     expect(site.query).toBe('iphone 15');
+    expect(site.navigations).toEqual([]);
+    expect(ai.classified).toHaveLength(0);
+    expect(ai.interpreted).toHaveLength(0);
+    expect(result.intent?.resolvedBy).toBe('deterministic');
+    expect(result.timings.modelCalls).toBe(0);
+  });
+
+  it('Laya confirms an unsure search reading: searched on the open site, no 7B call', async () => {
+    const ai = new FakeIntelligence(LAYA_SEARCH, null);
+    const site = results('phones');
+    const { result } = await run(site, 'long battery life phones for gaming and photos', ai);
+    expect(result.status).toBe('COMPLETED');
     expect(site.navigations).toEqual([]);
     expect(ai.classified[0]!.page).toMatchObject({ host: 'shop.fixture.test', canSearch: true });
     expect(ai.interpreted).toHaveLength(0);
@@ -226,9 +246,13 @@ describe('model routing — runner (Code → Laya → model → ask)', () => {
   it('models unavailable: an ordinary query continues with the code reading; a page reference asks', async () => {
     const down = new FakeIntelligence('off', null, 'unavailable');
     const site = results('phones');
-    const { result, events } = await run(site, 'iphone 15', down);
+    const { result, events } = await run(
+      site,
+      'long battery life phones for gaming and photos',
+      down,
+    );
     expect(result.status).toBe('COMPLETED');
-    expect(site.query).toBe('iphone 15');
+    expect(site.query).toBe('long battery life phones for gaming and photos');
     expect(result.intent?.resolvedBy).toBe('deterministic');
     expect(events.some((e) => e.message.startsWith('Continuing with the code reading'))).toBe(true);
 

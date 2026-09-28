@@ -8,6 +8,7 @@ import {
   hasModel,
   parseClassification,
   parseInterpretation,
+  whyInvalid,
   parseLocation,
   summarizeForModel,
   TransportError,
@@ -119,6 +120,53 @@ describe('model contracts — strict parsing', () => {
       kind: 'abstain',
       question: 'Which song?',
     });
+  });
+
+  it('an open/play answer that names an element is an element pick (real qwen2.5vl output)', () => {
+    // Seen on the Mac: the model chose the right element but labelled the answer "intent".
+    const real =
+      '{\n  "kind": "intent",\n  "confidence": 0.9,\n  "reason": "the Samsung Galaxy S24",\n  "action": "open_result",\n  "elementId": "el-13",\n  "media": false\n}';
+    expect(parseInterpretation(real)).toEqual({
+      kind: 'element',
+      elementId: 'el-13',
+      media: false,
+      confidence: 0.9,
+      reason: 'the Samsung Galaxy S24',
+    });
+    expect(
+      parseInterpretation({
+        kind: 'intent',
+        action: 'play_result',
+        elementId: 'el-2',
+        confidence: 0.8,
+        reason: '',
+      }),
+    ).toMatchObject({ kind: 'element', elementId: 'el-2', media: true });
+    // Without an element it stays a (positional) intent.
+    expect(
+      parseInterpretation({
+        kind: 'intent',
+        action: 'open_result',
+        ordinal: 2,
+        elementId: null,
+        confidence: 0.8,
+        reason: '',
+      }),
+    ).toMatchObject({ kind: 'intent', action: 'open_result', ordinal: 2 });
+  });
+
+  it('says which check an invalid answer failed, without echoing its content', () => {
+    expect(whyInvalid('play Arijit Singh')).toBe('not one JSON object');
+    expect(whyInvalid('{"kind":"intent","secret":"98765 43210","confidence":0.9}')).toBe(
+      'unknown keys (1)',
+    );
+    expect(whyInvalid('{"kind":"run_js"}')).toBe('unknown kind');
+    expect(
+      whyInvalid('{"kind":"intent","action":"search","query":"x","confidence":1.7,"reason":""}'),
+    ).toMatch(/^schema: confidence/);
+    expect(
+      whyInvalid('{"kind":"intent","action":"search","query":"x","confidence":1.7}'),
+    ).not.toMatch(/x/);
   });
 
   it('rejects everything else — never repaired, never guessed', () => {

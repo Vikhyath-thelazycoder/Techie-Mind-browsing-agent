@@ -684,6 +684,17 @@ function unsupportedIntent(original: string, command: string): ResolvedIntent {
 }
 
 /** Entity type marking a request that points at something on the page code cannot pick alone. */
+/**
+ * A bare search phrase with no sentence around it: at most five words, no pronoun, question word,
+ * negation or conversational filler. Anything that reads like a sentence goes to the models.
+ */
+const NOT_PLAIN_RE =
+  /(?<![\p{L}\p{N}])(?:i|i'm|im|me|my|we|us|our|you|your|it|this|that|these|those|one|ones|what|which|who|how|why|when|where|want|need|like|not|no|hmm|umm|uh|maybe|sure|something|anything|some|please|make|let|give|get|go|turn|take|put|set|change|increase|decrease|bigger|smaller|larger|show|tell|help|compare|can|could|would|should|will|is|are|was|do|does|did)(?![\p{L}\p{N}])/iu;
+function isPlainQuery(query: string): boolean {
+  const words = query.trim().split(/\s+/);
+  return words.length > 0 && words.length <= 5 && !NOT_PLAIN_RE.test(query);
+}
+
 export const AMBIGUOUS_ENTITY = 'ambiguous';
 
 /**
@@ -728,7 +739,9 @@ const NAV_LEFTOVER_NOISE = new Set([
   'site',
 ]);
 
-export function resolveIntent(original: string): ResolvedIntent {
+export function resolveIntent(request: string): ResolvedIntent {
+  // A request pasted inside quotes ("“now open the samsung one”") means the same without them.
+  const original = request.trim().replace(/^["'“”‘’«»]+\s*|\s*["'“”‘’«»]+$/gu, '');
   const language = detectLanguage(original);
   const context = stripContext(normalize(original).replace(POLITE_RE, ' '));
   const explicitContext = context.found;
@@ -839,7 +852,9 @@ export function resolveIntent(original: string): ResolvedIntent {
     query = trimEdges(withoutConstraints.replace(NAV_RE, ' '));
     intent = query ? 'search' : 'unknown';
     action = query ? 'search' : null;
-    confidence = query ? 0.5 : 0.1;
+    // A short name-like query ("iphone 15", "samsung phones") is a plain search: code is sure, so no
+    // model is asked (on the Mac that saved 4–6 s per follow-up). Sentences stay unsure.
+    confidence = !query ? 0.1 : isPlainQuery(query) ? 0.85 : 0.5;
   }
 
   if (followUp && query && (action === 'search' || action === 'search_and_play')) {

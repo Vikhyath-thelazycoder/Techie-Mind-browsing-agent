@@ -1,0 +1,75 @@
+{
+  "at": "2026-09-28T20:34:38.010Z",
+  "machine": "darwin/arm64",
+  "runs": 3,
+  "laya": {
+    "calls": 30,
+    "outcomes": {
+      "timeout": 1,
+      "answered": 29
+    },
+    "validRate": 0.9666666666666667,
+    "accuracy": 0.3103448275862069,
+    "escalationRate": 0,
+    "coldMs": 2504.9955840000002,
+    "warmP50Ms": 17.9,
+    "warmP95Ms": 494.4
+  },
+  "model": {
+    "model": "qwen2.5vl:7b",
+    "calls": 18,
+    "outcomes": {
+      "answered": 15,
+      "abstained": 3
+    },
+    "validRate": 1,
+    "accuracy": 0.6666666666666666,
+    "coldMs": 3558.975707999999,
+    "warmP50Ms": 2899.4,
+    "warmP95Ms": 3507.9,
+    "misses": [
+      "the cheapest one please → {\"kind\":\"intent\",\"action\":\"search\",\"site\":null,\"query\":\"cheapest phone\",\"ordinal\":null,\"confidence\":0.9,\"reason\":\"The user is asking for the cheapest phone, indicating they want to compare prices.\"}",
+      "I want to hear something by Arijit Singh → {\"kind\":\"abstain\",\"question\":\"Could you say that another way?\",\"reason\":\"The user wants to hear something by Arijit Singh, but the page is about phones, not music. The user's intent is unclear.\"}"
+    ]
+  },
+  "vision": {
+    "model": "qwen2.5vl:7b",
+    "image": "1008×756",
+    "targets": 7,
+    "calls": 21,
+    "answeredRate": 0.8571428571428571,
+    "localizationAccuracy": 0.5714285714285714,
+    "meanIoU": 0.4225875318851159,
+    "coldMs": 2110.3936250000042,
+    "warmP50Ms": 1868,
+    "warmP95Ms": 1953,
+    "ollamaPs": {
+      "models": [
+        {
+          "name": "qwen2.5vl:7b",
+          "model": "qwen2.5vl:7b",
+          "size": 7308134316,
+          "digest": "5ced39dfa4bac325dc183dd1e4febaa1c46b3ea28bce48896c8e69c1e79611cc",
+          "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "qwen25vl",
+            "families": [
+              "qwen25vl"
+            ],
+            "parameter_size": "8.3B",
+            "quantization_level": "Q4_K_M"
+          },
+          "expires_at": "2026-09-29T02:36:14.487997+05:30",
+          "size_vram": 7308134316,
+          "context_length": 32768
+        }
+      ]
+    },
+    "misses": [
+      "the shopping cart icon: invalid not a box inside the image",
+      "the search (magnifying glass) icon: box 866,27,888,49",
+      "the heart icon: box 928,28,948,50"
+    ]
+  }
+}

@@ -41,14 +41,17 @@ MAX_BYTES = 16 * 1024
 MAX_TEXT = 2000
 TOKEN_HEADER = "x-techie-mind-laya-token"
 CATEGORIES = ["search", "open_website", "play_media", "pick_result", "page_command", "unclear"]
-QUESTION = "What kind of browser request is this?"
+# Wording measured on the Mac (2026-09-29, 8 labelled requests): short labels as {id: text} scored
+# 2/8 with confident mistakes; these sentences as a plain list scored 5/8, and its mistakes came with
+# low confidence (< 0.5), so the extension escalates them instead of trusting them.
+QUESTION = "Classify the user's browser request. What does the user want the browser agent to do?"
 DESCRIPTIONS = {
-    "search": "search for something",
-    "open_website": "open a website",
-    "play_media": "play a song or video",
-    "pick_result": "open an item already shown on the page",
-    "page_command": "scroll, go back, zoom or another page control",
-    "unclear": "not clear",
+    "search": "The user wants to search for a product, video or information by name or keywords",
+    "open_website": "The user names a website and wants to go to it",
+    "play_media": "The user wants to play or listen to a song, music or video",
+    "pick_result": "The user refers to one item already shown on the page (e.g. 'the second one', 'the samsung one')",
+    "page_command": "The user wants to control the page: scroll, go back, zoom, refresh",
+    "unclear": "The request is unclear",
 }
 
 
@@ -91,8 +94,10 @@ class Laya:
             self.agent = laya_mlx.load(MODEL, dtype=dtype)
 
     def raw(self, text: str, page, choices):
-        options = [DESCRIPTIONS.get(c, c) for c in choices]
-        questions = {"category": {"question": QUESTION, "options": options}}
+        # laya_mlx question format: {"type": "choice", "instructions": str, "criteria": [label, ...]}.
+        # The labels are the descriptions; interpret() maps Laya's "choice" back to our category id.
+        criteria = [DESCRIPTIONS.get(c, c) for c in choices]
+        questions = {"category": {"type": "choice", "instructions": QUESTION, "criteria": criteria}}
         return self.agent.predict(state_text(text, page), questions)
 
     def classify(self, text: str, page, choices):
@@ -104,7 +109,13 @@ class Laya:
 
 def interpret(result, choices):
     """Map Laya's answer for the "category" question onto one of `choices`. Defensive: any shape
-    we do not recognise becomes an escalation — never a guess."""
+    we do not recognise becomes an escalation — never a guess.
+
+    Real laya_mlx 0.2 shape (verified with --selftest on the Mac):
+      {"model": "laya-rl-agent", "answers": {"category": {"type": "choice", "choice": <label>,
+        "confidence": 0..1, "probabilities": {label: p}, "action": {"act_probability": p}}}, ...}
+    `act_probability` is Laya's own P(answer directly) from its act/escalate head; below 0.5 it
+    prefers to escalate, so we pass the request up a tier."""
     answer = result
     if isinstance(result, dict):
         answer = result.get("answers", result)
@@ -115,8 +126,18 @@ def interpret(result, choices):
     if isinstance(answer, dict):
         choice = answer.get("choice", answer.get("answer", answer.get("label")))
         confidence = answer.get("confidence", answer.get("prob", answer.get("score", 0.0)))
-        act = str(answer.get("act", answer.get("action", ""))).lower()
-        escalate = bool(answer.get("escalate")) or act == "escalate"
+        action = answer.get("action")
+        if isinstance(action, dict) and "act_probability" in action:
+            try:
+                escalate = float(action["act_probability"]) < 0.5
+            except (TypeError, ValueError):
+                escalate = True
+        else:
+            act = str(answer.get("act", action if isinstance(action, str) else "")).lower()
+            escalate = bool(answer.get("escalate")) or act == "escalate"
+        if choice is None and isinstance(answer.get("probabilities"), dict):
+            probs = answer["probabilities"]
+            choice = max(probs, key=probs.get)
         if choice is None and isinstance(answer.get("probs"), dict):
             probs = answer["probs"]
             choice = max(probs, key=probs.get)
@@ -220,11 +241,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def selftest(laya: "Laya"):
+    flipkart = {"host": "www.flipkart.com", "canSearch": True, "resultCount": 20}
     samples = [
-        ("iphone 15", {"host": "www.flipkart.com", "canSearch": True, "resultCount": 20}),
-        ("open the samsung one", {"host": "www.flipkart.com", "canSearch": True, "resultCount": 20}),
+        ("iphone 15", flipkart),
+        ("open the samsung one", flipkart),
         ("I want to hear something by Arijit Singh", None),
         ("scroll down a bit", {"host": "www.youtube.com", "canSearch": True, "resultCount": 0}),
+        ("Open Flipkart and search phones", None),
+        ("open the good one", flipkart),
     ]
     for text, page in samples:
         started = time.perf_counter()

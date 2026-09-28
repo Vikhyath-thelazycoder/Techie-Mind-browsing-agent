@@ -303,7 +303,7 @@ function ModelsSection({ adapter, settings }: SectionProps) {
           <Field
             label="Adapter Token"
             htmlFor="laya-token"
-            hint="From ~/.config/techie-mind/laya.token. It only authenticates this browser to the local adapter."
+            hint="Copy it exactly with: pbcopy < ~/.config/techie-mind/laya.token (cat shows an extra % in zsh — don't paste that). It only authenticates this browser to the local adapter."
           >
             <input
               id="laya-token"

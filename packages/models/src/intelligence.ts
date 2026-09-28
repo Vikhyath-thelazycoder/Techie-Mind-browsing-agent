@@ -12,7 +12,13 @@ import {
 } from '@techie-mind/contracts';
 import type { RedactedImage } from '@techie-mind/privacy';
 import { gatewayChat, hasModel, layaClassify, ollamaChat, ollamaModels } from './clients.js';
-import { CATEGORIES, parseClassification, parseInterpretation, parseLocation } from './parse.js';
+import {
+  CATEGORIES,
+  parseClassification,
+  parseInterpretation,
+  parseLocation,
+  whyInvalid,
+} from './parse.js';
 import {
   INTERPRET_SCHEMA,
   INTERPRET_SYSTEM,
@@ -300,7 +306,7 @@ export function createIntelligence(deps: IntelligenceDeps): Intelligence {
               'plan-action',
               'invalid',
               started,
-              'answer is not the required JSON',
+              `answer is not the required JSON (${whyInvalid(content) ?? 'unreadable'})`,
             ),
             value: null,
           };

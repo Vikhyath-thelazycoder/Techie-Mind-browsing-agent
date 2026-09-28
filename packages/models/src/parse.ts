@@ -45,11 +45,44 @@ const blank = (v: unknown) => v === null || v === undefined || v === '';
 
 /** Parse the flat JSON object the reasoning model emits into a strict ModelInterpretation. */
 export function parseInterpretation(raw: unknown): ModelInterpretation | null {
+  const r = readInterpretation(raw);
+  return 'value' in r ? r.value : null;
+}
+
+/**
+ * Which check an unusable answer failed — structure only (never the answer's text or key names),
+ * so it is safe to put in logs and the activity timeline. Null when the answer is valid.
+ */
+export function whyInvalid(raw: unknown): string | null {
+  const r = readInterpretation(raw);
+  return 'why' in r ? r.why : null;
+}
+
+const RESULT_ACTIONS = new Set(['open_result', 'play_result']);
+
+function readInterpretation(raw: unknown): { value: ModelInterpretation } | { why: string } {
   const o = asObject(raw);
-  if (!o || Object.keys(o).some((k) => !FLAT_KEYS.has(k))) return null;
+  if (!o) return { why: 'not one JSON object' };
+  const unknownKeys = Object.keys(o).filter((k) => !FLAT_KEYS.has(k)).length;
+  if (unknownKeys) return { why: `unknown keys (${unknownKeys})` };
   const reason = typeof o['reason'] === 'string' ? o['reason'].slice(0, 500) : '';
   let candidate: unknown;
-  if (o['kind'] === 'intent') {
+  // qwen2.5vl often labels an element pick as an "open/play the result" intent and names the element
+  // in the same object. That is an element pick; profileFromModel still checks it was shown.
+  const namedElement =
+    o['kind'] === 'intent' &&
+    RESULT_ACTIONS.has(String(o['action'])) &&
+    typeof o['elementId'] === 'string' &&
+    o['elementId'] !== '';
+  if (namedElement) {
+    candidate = {
+      kind: 'element',
+      elementId: o['elementId'],
+      media: o['action'] === 'play_result' || o['media'] === true,
+      confidence: o['confidence'],
+      reason,
+    };
+  } else if (o['kind'] === 'intent') {
     candidate = {
       kind: 'intent',
       action: o['action'] as ModelIntentAction,
@@ -77,10 +110,12 @@ export function parseInterpretation(raw: unknown): ModelInterpretation | null {
       reason,
     };
   } else {
-    return null;
+    return { why: 'unknown kind' };
   }
   const parsed = ModelInterpretation.safeParse(candidate);
-  return parsed.success ? parsed.data : null;
+  if (parsed.success) return { value: parsed.data };
+  const issue = parsed.error.issues[0];
+  return { why: `schema: ${issue?.path.join('.') || 'answer'} ${issue?.code ?? 'invalid'}` };
 }
 
 /** Parse the Laya adapter's typed answer. */

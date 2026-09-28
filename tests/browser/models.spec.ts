@@ -73,7 +73,16 @@ test.describe('model routing — real browser', () => {
       'Open form.fixture.test and search for lamps',
     );
     expect(first.result.status, explain(first)).toBe('COMPLETED');
-    const second = await runAgentTask(context, extensionId, 'desk lamp');
+    // A plain name-like query never needs a model.
+    const plain = await runAgentTask(context, extensionId, 'desk lamp');
+    expect(plain.result.status, explain(plain)).toBe('COMPLETED');
+    expect(plain.result.timings.modelCalls).toBe(0);
+    // A longer, unsure one tries both tiers, finds them down, and completes with the code reading.
+    const second = await runAgentTask(
+      context,
+      extensionId,
+      'lamps for a small study table with warm light',
+    );
     expect(second.result.status, explain(second)).toBe('COMPLETED');
     expect(
       second.result.models.map((m) => m.outcome),

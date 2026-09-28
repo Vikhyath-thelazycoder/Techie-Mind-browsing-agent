@@ -2,6 +2,7 @@ import {
   decideNavigation,
   describeGoal,
   needsContextFit,
+  needsModel,
   planGoals,
   resolveIntent,
   type TabContext,
@@ -26,6 +27,8 @@ export interface PlanPreview {
   destination: string | null;
   steps: string[];
   problem: string | null;
+  /** Code is unsure: the local models will be asked when it runs. */
+  needsModel?: boolean;
 }
 
 /**
@@ -34,6 +37,24 @@ export interface PlanPreview {
  */
 export function previewPlan(text: string, context: TabContext | null = null): PlanPreview {
   const { profile } = resolveIntent(text);
+  // Code is unsure ("now open the samsung one"): the local models decide when it runs. The preview
+  // must not block that with a code-only "could not understand".
+  if (needsModel(profile)) {
+    return {
+      text,
+      intent: profile,
+      destination: null,
+      steps: [
+        'Ask the local AI what you mean (Laya, then the local model)',
+        context
+          ? `Act on the open page (${context.host}), or ask you which one`
+          : 'Act on it, or ask you',
+        'Verify the result',
+      ],
+      problem: null,
+      needsModel: true,
+    };
+  }
   // The panel cannot inspect the page; assume the open page can search. The background decides
   // for real (it observes the page) and falls back to another destination when it cannot.
   const fit = context ? { canSearch: true, hasMedia: true } : null;
