@@ -243,8 +243,37 @@ function newTabSite(url: URL): string {
   return page('TabShop', `${form}<main><h1>Welcome</h1></main>`);
 }
 
+/**
+ * 12 — Visual-only results (Phase 4): product tiles are links with no accessible name or text —
+ * only their colour says what they are. The account strip shows synthetic personal data and a
+ * filled password field, which must be painted over before any screenshot leaves the browser.
+ */
+function visualSite(url: URL): string {
+  const q = url.searchParams.get('q') ?? '';
+  const p = SYNTHETIC_PII;
+  const header = `<header><form role="search" action="/search"><input type="search" name="q" aria-label="Search products" value="${esc(q)}"><button type="submit">Search</button></form>
+<p id="acct">Signed in: <span id="pii-email">${p.email}</span> · <span id="pii-phone">+91 ${p.phone}</span>
+<label>PIN <input id="pii-pass" type="password" value="${p.password}"></label></p></header>`;
+  if (url.pathname === '/search') {
+    const tile = (n: number, colour: string, radius: string) =>
+      `<a class="tile" id="tile-${n}" href="/item/${n}" style="display:inline-block;width:200px;height:200px;margin:12px;border:1px solid #ccc;border-radius:10px;position:relative"><span style="position:absolute;inset:40px;background:${colour};border-radius:${radius}"></span></a>`;
+    return page(
+      `${q} - VisualShop`,
+      `${header}<main><h1>Results</h1>${tile(1, '#1e5bd8', '50%')}${tile(2, '#dd1111', '50%')}${tile(3, '#1a9e3a', '8px')}</main>`,
+    );
+  }
+  if (url.pathname.startsWith('/item/')) {
+    return page(
+      'Item - VisualShop',
+      `${header}<main><h1>Item ${esc(url.pathname.slice(6))}</h1></main>`,
+    );
+  }
+  return page('VisualShop', `${header}<main><h1>Welcome</h1></main>`);
+}
+
 const SITES: Record<string, (url: URL) => string> = {
   'newtab.fixture.test': newTabSite,
+  'visual.fixture.test': visualSite,
   'form.fixture.test': formSite,
   'spa.fixture.test': spaSite,
   'toggle.fixture.test': toggleSite,
@@ -327,7 +356,13 @@ export async function serveWebsiteFixtures(context: BrowserContext): Promise<Web
     const url = new URL(route.request().url());
     const host = url.hostname;
     const label = host.replace(/^www\./, '').split('.')[0] ?? '';
-    if (host.endsWith('.fixture.test') || host === 'fixture.techiemind.test') {
+    if (
+      host.endsWith('.fixture.test') ||
+      host === 'fixture.techiemind.test' ||
+      host === '127.0.0.1' ||
+      host === 'localhost'
+    ) {
+      // Fixture sites, and local model endpoints (handled by the model routes of the fixture).
       await route.fallback();
       return;
     }

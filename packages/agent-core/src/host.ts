@@ -6,7 +6,19 @@ import type {
   ProbeResponse,
   WebsiteProbe,
 } from '@techie-mind/contracts';
+import type { RedactedImage } from '@techie-mind/privacy';
 import type { TabContext } from './router.js';
+
+/** The visible tab after local redaction (Phase 4). The raw screenshot never leaves the host. */
+export interface VisualCapture {
+  image: RedactedImage;
+  /** Image pixels per CSS pixel. */
+  scale: number;
+  scrollX: number;
+  scrollY: number;
+  /** Capture + redaction time. */
+  ms: number;
+}
 
 /**
  * Everything the agent core needs from the browser. The core never touches browser APIs itself:
@@ -56,4 +68,10 @@ export interface AgentHost {
    * back to scanning the observation.
    */
   scanPage?(tabId: number): Promise<PrivacyScanResponse | null>;
+  /**
+   * Capture the visible part of the tab with every sensitive region painted over (text the
+   * detectors flag, sensitive fields, and — with `people` — images of people). Optional: hosts
+   * without it have no visual fallback. Null when the tab cannot be captured (not visible).
+   */
+  captureVisible?(tabId: number, options: { people: boolean }): Promise<VisualCapture | null>;
 }

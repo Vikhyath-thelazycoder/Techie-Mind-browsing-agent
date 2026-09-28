@@ -1,14 +1,14 @@
 # Implementation Status
 
-**Status:** Phase 0 — Foundation: COMPLETE. Phase 1 — Real Browser Agent Core: COMPLETE (see [phases/PHASE_1_REPORT.md](phases/PHASE_1_REPORT.md)), including the Phase 1 correction (website resolution, current-tab awareness, task continuity — [phases/PHASE_1_CORRECTION_REPORT.md](phases/PHASE_1_CORRECTION_REPORT.md)). Phase 2 — Security + Privacy: COMPLETE (see [phases/PHASE_2_REPORT.md](phases/PHASE_2_REPORT.md)). Phases 3–10 not started.
+**Status:** Phase 0 — Foundation: COMPLETE. Phase 1 — Real Browser Agent Core: COMPLETE (see [phases/PHASE_1_REPORT.md](phases/PHASE_1_REPORT.md)), including the Phase 1 correction (website resolution, current-tab awareness, task continuity — [phases/PHASE_1_CORRECTION_REPORT.md](phases/PHASE_1_CORRECTION_REPORT.md)). Phase 2 — Security + Privacy: COMPLETE (see [phases/PHASE_2_REPORT.md](phases/PHASE_2_REPORT.md)). Phase 3 — Model Routing and Phase 4 — Visual Perception: COMPLETE (Batch A, see [phases/BATCH_A_REPORT.md](phases/BATCH_A_REPORT.md)). Phases 5–10 not started.
 
 | Phase | Name | Status |
 |---|---|---|
 | 0 | Foundation | **Complete** |
 | 1 | Real Browser Agent Core | **Complete** |
 | 2 | Security + Privacy | **Complete** |
-| 3 | Model Routing | Not started |
-| 4 | Visual Perception | Not started |
+| 3 | Model Routing | **Complete** (Batch A) |
+| 4 | Visual Perception | **Complete** (Batch A) |
 | 5 | Real Agent Workflows | Not started |
 | 6 | All 12 Skills | Not started |
 | 7 | Human Handover + Voice + Multilingual | Not started |
@@ -49,3 +49,12 @@
 - Agent core — privacy scan per observation, firewall before every action and navigation, task vault purged at the end, `TaskResult.privacy`
 - Extension — gated website probes, privacy-redacted logs and history, persistent hash-chained audit log, in-page PRIVACY_SCAN message, privacy line in the result card
 - Tests — privacy/firewall/audit units, labelled corpus metrics, runner in-the-loop tests, real-Chromium adversarial suite; Phase 2 ledger + verifier + report; threat model
+
+## Batch A deliverables (Phase 3 + 4)
+
+- `@techie-mind/models` — Laya / Ollama / gateway / vision clients over an injected, privacy-gated transport; prompts; strict parsing; page summaries
+- Agent core — Code → Laya → model → ask routing (`escalate.ts`), page-reference detection, `open-element` goal, level-4 visual fallback (`vision.ts`), `TaskResult.models`, `modelMs` / `visionMs`
+- Privacy — gate support for model wire bodies, extension headers and redacted images; in-page `sensitiveRegions`; id false-positive fixes
+- Extension — gated model transport, redacted tab capture (`capture.ts`), Laya settings, `<all_urls>` host access for capture
+- `scripts/laya/laya_adapter.py` + launchd plist; `npm run bench:models [-- --vision]`
+- Tests — 387 unit, 44 real-Chromium (43 pass here + 1 environment-only); gates 9/9 + 7/7

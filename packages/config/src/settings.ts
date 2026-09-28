@@ -40,6 +40,14 @@ export const ModelSettings = z.strictObject({
   laya: z.strictObject({
     enabled: z.boolean(),
     adapterUrl: LoopbackUrl,
+    /**
+     * Shared secret the local Laya adapter prints on first start. It only authenticates this
+     * extension to a loopback process — it is not a provider credential and never leaves the machine.
+     */
+    token: z
+      .string()
+      .max(128)
+      .regex(/^[A-Za-z0-9_-]*$/, 'letters, digits, _ and - only'),
   }),
 });
 export type ModelSettings = z.infer<typeof ModelSettings>;
@@ -126,9 +134,9 @@ export const DEFAULT_SETTINGS: Settings = {
   schemaVersion: 1,
   model: {
     activeProvider: 'ollama',
-    ollama: { baseUrl: 'http://127.0.0.1:11434', model: 'qwen2.5:7b' },
+    ollama: { baseUrl: 'http://127.0.0.1:11434', model: 'qwen2.5vl:7b' },
     openaiCompatible: { endpoint: null, model: '' },
-    laya: { enabled: true, adapterUrl: 'http://127.0.0.1:8765' },
+    laya: { enabled: true, adapterUrl: 'http://127.0.0.1:8765', token: '' },
   },
   privacy: {
     enabled: true,

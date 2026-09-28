@@ -60,6 +60,7 @@ function fakeApi(overrides: Partial<WebExtensionApi> = {}) {
       },
       update,
       goBack: vi.fn(async () => {}),
+      captureVisibleTab: vi.fn(async () => 'data:image/png;base64,AAAA'),
     },
     action: { onClicked },
     ...overrides,

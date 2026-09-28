@@ -65,7 +65,7 @@ export type NavigationDecisionResult =
     };
 
 const SEARCH_ACTIONS = new Set(['search', 'search_and_play', 'search_and_open']);
-const RESULT_ACTIONS = new Set(['play_result', 'open_result']);
+const RESULT_ACTIONS = new Set(['play_result', 'open_result', 'open_element', 'play_element']);
 
 /** True when the decision depends on what the open page can do (needs one observation). */
 export function needsContextFit(profile: IntentProfile, context: TabContext | null): boolean {

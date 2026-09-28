@@ -2,7 +2,7 @@
   "name": "techie-mind",
   "version": "0.1.0",
   "private": true,
-  "description": "Techie Mind \u2014 privacy-first autonomous browser agent (SIH26171).",
+  "description": "Techie Mind — privacy-first autonomous browser agent (SIH26171).",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -21,10 +21,13 @@
     "test:watch": "vitest",
     "test:browser": "playwright test --project=browser",
     "lint:firefox": "web-ext lint --source-dir apps/extension/dist/firefox --self-hosted",
-    "verify": "node scripts/verify/phase2.mjs all",
+    "verify": "node scripts/verify/phase3.mjs all",
     "test:live": "playwright test --project=live",
     "verify:phase0": "node scripts/verify/phase0.mjs all",
-    "verify:phase1": "node scripts/verify/phase1.mjs all"
+    "verify:phase1": "node scripts/verify/phase1.mjs all",
+    "bench:models": "tsx scripts/bench/models.ts",
+    "verify:phase2": "node scripts/verify/phase2.mjs all",
+    "verify:phase3": "node scripts/verify/phase3.mjs all"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

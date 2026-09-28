@@ -1,0 +1,15 @@
+{
+  "name": "@techie-mind/models",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tiered intelligence clients: Laya (typed decisions), local Ollama / configured API model (interpretation), model page summaries and strict output parsing. Transport is injected \u2014 every call passes the outbound privacy gate.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@techie-mind/config": "0.1.0",
+    "@techie-mind/contracts": "0.1.0",
+    "@techie-mind/privacy": "0.1.0"
+  }
+}

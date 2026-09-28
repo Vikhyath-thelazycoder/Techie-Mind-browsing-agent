@@ -10,6 +10,7 @@ import {
   type ExecuteResponse,
   type ExpectedOutcome,
   type IntentProfile,
+  type ModelUsage,
   type NavigationDecision,
   type Observation,
   type PrivacySummary,
@@ -21,7 +22,8 @@ import {
   type WebsiteProbe,
   type WebsiteResolution,
 } from '@techie-mind/contracts';
-import { sanitizeObservation, TokenVault } from '@techie-mind/privacy';
+import type { Intelligence, PageFacts } from '@techie-mind/models';
+import { redactText, sanitizeObservation, TokenVault } from '@techie-mind/privacy';
 import { ActionFirewall, scanInjection, type FirewallDecision } from '@techie-mind/security';
 import type { Logger } from '@techie-mind/telemetry';
 import { bindAction, bindNavigation } from './binding.js';
@@ -34,7 +36,10 @@ import {
   rankResults,
 } from './grounding.js';
 import type { AgentHost } from './host.js';
-import { resolveIntent } from './intent.js';
+import { isAmbiguous, judgeLaya, needsModel, profileFromModel } from './escalate.js';
+import { ELEMENT_ENTITY, ELEMENT_LABEL_ENTITY } from './plan.js';
+import { groundRegion, regionToPage, visionWorthTrying } from './vision.js';
+import { resolveIntent, UNSUPPORTED_ENTITY } from './intent.js';
 import { describeGoal, planGoals, type Goal } from './plan.js';
 import {
   decideNavigation,
@@ -71,6 +76,8 @@ export interface RunnerDeps {
   newId?: (prefix: string) => string;
   /** The local action firewall (one per background). */
   firewall?: ActionFirewall;
+  /** Model tiers (Laya, local model / API). Absent = code only, exactly as in Phase 1–2. */
+  intelligence?: Intelligence;
 }
 
 type Stage =
@@ -85,7 +92,9 @@ type Stage =
   | 'grounding'
   | 'action'
   | 'verification'
-  | 'wait';
+  | 'wait'
+  | 'model'
+  | 'vision';
 
 /** Codes that mean "the page changed under us": observe again and re-ground (recovery level 3). */
 const REGROUND_CODES = new Set([
@@ -212,6 +221,8 @@ class TaskRun {
     actionMs: 0,
     verificationMs: 0,
     waitMs: 0,
+    modelMs: 0,
+    visionMs: 0,
     totalMs: 0,
     modelCalls: 0,
     observations: 0,
@@ -245,6 +256,9 @@ class TaskRun {
   };
   #finalUrl: string | null = null;
   #inNavigation = false;
+  readonly #models: ModelUsage[] = [];
+  /** Which tier proposed the plan's actions (the firewall still authorizes each one). */
+  #proposer: 'deterministic' | 'laya' | 'qwen' | 'api' | 'vision' = 'deterministic';
 
   constructor(
     private readonly task: Task,
@@ -509,13 +523,13 @@ class TaskRun {
       reason,
       confidence,
       expectedOutcome,
-      proposedBy: 'deterministic',
+      proposedBy: this.#proposer,
       now: this.#now(),
     });
     this.#emit('ACTION_PROPOSED', `${args.type}${target ? ` ${describeNode(target)}` : ''}`, {
       actionId: action.actionId,
       actionType: args.type,
-      proposedBy: 'deterministic',
+      proposedBy: this.#proposer,
     });
     this.#actions += 1;
     const decision = await this.#authorize(action, obs);
@@ -577,11 +591,17 @@ class TaskRun {
   async run(): Promise<TaskResult> {
     this.#emit('TASK_STARTED', this.task.text, { source: this.task.source, mode: this.task.mode });
     try {
-      const { profile } = await this.#timed('intent', async () => resolveIntent(this.task.text));
+      const code = await this.#timed('intent', async () => resolveIntent(this.task.text).profile);
+      // Where to act — decided BEFORE any navigation, from the wording and the open tab.
+      const context = await this.#timed('context', () => this.deps.host.currentContext());
+      // Code first; only a reading code is unsure of goes to the model tiers.
+      const escalated = await this.#escalate(code, context);
+      if ('finish' in escalated) return escalated.finish;
+      const profile = escalated.profile;
       this.#intent = profile;
       this.#emit(
         'INTENT_RESOLVED',
-        `${profile.intent}${profile.query ? ` · "${profile.query}"` : ''}`,
+        `${profile.intent}${profile.query ? ` · "${profile.query}"` : ''} (${profile.resolvedBy})`,
         {
           intent: profile.intent,
           action: profile.action,
@@ -590,12 +610,10 @@ class TaskRun {
           language: profile.language,
           confidence: profile.confidence,
           resolvedBy: profile.resolvedBy,
-          modelCalls: 0,
+          modelCalls: this.#timings.modelCalls,
         },
       );
 
-      // Where to act — decided BEFORE any navigation, from the wording and the open tab.
-      const context = await this.#timed('context', () => this.deps.host.currentContext());
       // The open tab's site is part of the user's context; recovery may return to it.
       if (context) this.#allowedHosts.add(context.host);
       const fit =
@@ -718,6 +736,7 @@ class TaskRun {
       target: this.#target,
       navigation: this.#navigation,
       privacy: this.#privacy,
+      models: this.#models,
       steps: this.#steps,
       timings: this.#timings,
       tabId: this.#tabId,
@@ -758,7 +777,9 @@ class TaskRun {
             ? await this.#navigate(goal, ladder)
             : goal.kind === 'search'
               ? await this.#search(goal, ladder)
-              : await this.#openResult(goal, ladder);
+              : goal.kind === 'open-element'
+                ? await this.#openElement(goal)
+                : await this.#openResult(goal, ladder);
       this.#verified(outcome.verified, outcome.evidence, goal);
       return {
         ...base,
@@ -781,6 +802,313 @@ class TaskRun {
         recovery: ladder.decisions,
       };
     }
+  }
+
+  // ── model tiers (Phase 3) ────────────────────────────────────────────────────────────────
+
+  #recordModel(usage: ModelUsage) {
+    this.#models.push(usage);
+    if (usage.reason !== 'disabled') this.#timings.modelCalls += 1;
+    this.#emit(
+      'MODEL_CALLED',
+      `${usage.tier} (${usage.modelId}): ${usage.outcome} in ${Math.round(usage.latencyMs)} ms${usage.reason ? ` — ${usage.reason}` : ''}`,
+      {
+        tier: usage.tier,
+        modelId: usage.modelId,
+        outcome: usage.outcome,
+        latencyMs: Math.round(usage.latencyMs),
+      },
+      usage.outcome === 'answered' || usage.outcome === 'escalated' ? 'info' : 'warn',
+    );
+  }
+
+  /** Ask the user instead of guessing (spec §21: … → HANDOVER / ABSTAIN). */
+  #clarify(message: string, intent: IntentProfile): { finish: TaskResult } {
+    this.#intent = intent;
+    this.#emit('HANDOVER_REQUIRED', message, { reason: 'clarification' }, 'warn');
+    return { finish: this.#finish('HUMAN_REQUIRED', { code: 'NEEDS_CLARIFICATION', message }) };
+  }
+
+  /** Read the open page once for the model tiers: facts for Laya, a sanitized page for the model. */
+  async #readPageForModels(
+    context: TabContext | null,
+  ): Promise<{ facts: PageFacts | null; obs: Observation | null }> {
+    if (!context) return { facts: null, obs: null };
+    this.#tabId = context.tabId;
+    try {
+      const obs = await this.#observe();
+      const query = currentQuery(obs);
+      return {
+        obs,
+        facts: {
+          host: context.host,
+          canSearch: groundSearchInput(obs).length > 0 || groundSearchToggle(obs).length > 0,
+          resultCount: rankResults(obs, query, null).length,
+        },
+      };
+    } catch {
+      return { facts: { host: context.host, canSearch: false, resultCount: 0 }, obs: null };
+    } finally {
+      this.#tabId = null;
+    }
+  }
+
+  /**
+   * Code → Laya → active model → ask the user. Code readings it is sure of pass straight through
+   * (0 model calls). Personal data in the request reaches a model only as vault tokens; the page
+   * only as a sanitized observation; and every answer is re-checked by `profileFromModel`.
+   */
+  async #escalate(
+    code: IntentProfile,
+    context: TabContext | null,
+  ): Promise<{ profile: IntentProfile } | { finish: TaskResult }> {
+    const intelligence = this.deps.intelligence;
+    const ambiguous = isAmbiguous(code);
+    const fallback = (why: string): { profile: IntentProfile } | { finish: TaskResult } => {
+      if (ambiguous) {
+        return this.#clarify(
+          `Which one do you mean? ${why ? `(${why}) ` : ''}Say its position, for example "open the second result", or more of its name.`,
+          code,
+        );
+      }
+      if (why) {
+        this.#emit('SYSTEM', `Continuing with the code reading: ${why}`, { reason: why });
+      }
+      return { profile: code };
+    };
+    if (!needsModel(code)) return { profile: code };
+    if (!intelligence) return fallback('');
+
+    const { text: modelText } = redactText(this.task.text, this.#vault);
+    // What models see of the code's reading: its text fields redacted like the request, and no
+    // entities/constraints (their `value` fields are never sent — the gate refuses such keys).
+    const redact = (v: string | null) => (v ? redactText(v, this.#vault).text : null);
+    const modelIntent: IntentProfile = {
+      ...code,
+      query: redact(code.query),
+      siteName: redact(code.siteName),
+      entities: [],
+      constraints: [],
+    };
+    const page = await this.#readPageForModels(context);
+
+    // Tier 1 — Laya: a fast typed decision.
+    if (intelligence.layaEnabled) {
+      const laya = await this.#timed('model', () =>
+        intelligence.classify({
+          taskId: this.task.taskId,
+          text: modelText,
+          intent: modelIntent,
+          page: page.facts,
+        }),
+      );
+      this.#recordModel(laya.usage);
+      const verdict = judgeLaya(laya.value, code);
+      if (verdict.kind === 'accept-code') {
+        this.#proposer = 'laya';
+        return {
+          profile: {
+            ...code,
+            resolvedBy: 'laya',
+            confidence: laya.value?.confidence ?? code.confidence,
+          },
+        };
+      }
+      if (verdict.kind === 'page-command') {
+        return {
+          profile: {
+            ...code,
+            intent: 'unknown',
+            action: null,
+            query: null,
+            resolvedBy: 'laya',
+            entities: [{ type: UNSUPPORTED_ENTITY, value: 'page command' }],
+          },
+        };
+      }
+    }
+
+    // Tier 2 (local model) or tier 4 (configured gateway) — the ONE active model.
+    const shown = page.obs ? sanitizeObservation(page.obs, this.#vault).observation : null;
+    const answer = await this.#timed('model', () =>
+      intelligence.interpret({
+        taskId: this.task.taskId,
+        text: modelText,
+        intent: modelIntent,
+        observation: shown,
+      }),
+    );
+    this.#recordModel(answer.usage);
+    const value = answer.value;
+    // A description of something on screen that the element list could not settle — the page may
+    // show it only visually (image tiles, icon buttons): look at the page (level 4) before asking.
+    const lookAtPage = async () =>
+      ambiguous && context && page.obs && visionWorthTrying(page.obs)
+        ? this.#visualProfile(code, context, page.obs, modelText)
+        : null;
+    if (!value)
+      return (await lookAtPage()) ?? fallback(`${answer.usage.tier} ${answer.usage.outcome}`);
+    if (value.kind === 'abstain')
+      return (await lookAtPage()) ?? this.#clarify(value.question, code);
+    const mapped = profileFromModel(value, code, modelText, shown, answer.usage.tier);
+    if (!mapped.ok) {
+      this.#recordModel({
+        ...answer.usage,
+        outcome: 'rejected',
+        latencyMs: 0,
+        reason: mapped.reason,
+      });
+      return (await lookAtPage()) ?? fallback(`model answer refused: ${mapped.reason}`);
+    }
+    // Tokens in a model query stand for the user's own words: restore them locally.
+    let profile = mapped.profile;
+    if (profile.query) {
+      profile = {
+        ...profile,
+        query: profile.query.replace(
+          /\b[A-Z]{2,24}_\d{3}\b/g,
+          (t) => this.#vault.resolve(t, { consume: false }) ?? t,
+        ),
+      };
+    }
+    this.#proposer = answer.usage.tier === 'api' ? 'api' : 'qwen';
+    return { profile };
+  }
+
+  /**
+   * Level 4 — look at the screen. Capture the visible tab (sensitive regions painted over inside
+   * the host), ask the local vision model where the target is, map its box to page coordinates and
+   * ground it to one visible interactive DOM element. Returns null whenever any step cannot be
+   * trusted; the caller then hands over. Never a coordinate click.
+   */
+  async #visualGround(target: string, obs: Observation): Promise<DOMNode | null> {
+    const locate = this.deps.intelligence?.locate?.bind(this.deps.intelligence);
+    const capture = this.deps.host.captureVisible?.bind(this.deps.host);
+    if (!locate || !capture || !visionWorthTrying(obs)) return null;
+    this.#emit(
+      'SYSTEM',
+      'The page structure does not identify the target — looking at the screen',
+      {
+        reason: 'semantic-perception-insufficient',
+      },
+    );
+    return this.#timed('vision', async () => {
+      const shot = await capture(this.#tab, {
+        people: this.deps.settings.privacy.faceBlurring,
+      }).catch(() => null);
+      if (!shot) {
+        this.#emit('SYSTEM', 'The tab could not be captured for vision', {}, 'warn');
+        return null;
+      }
+      this.#emit(
+        'PRIVACY_EVENT',
+        `Screenshot redacted locally: ${shot.image.regions} sensitive region(s) painted over before vision`,
+        { regions: shot.image.regions, width: shot.image.width, height: shot.image.height },
+      );
+      const answer = await locate({
+        taskId: this.task.taskId,
+        target: redactText(target, this.#vault).text,
+        intent: {
+          ...(this.#intent ?? resolveIntent(this.task.text).profile),
+          entities: [],
+          constraints: [],
+        },
+        image: shot.image,
+      });
+      this.#recordModel(answer.usage);
+      if (!answer.value?.found) return null;
+      const region = regionToPage(answer.value.box, shot);
+      const match = groundRegion(region, obs);
+      if (!match) {
+        this.#emit('SYSTEM', 'Vision found a region, but no page element is there — not clicking', {
+          x: Math.round(region.x),
+          y: Math.round(region.y),
+        });
+        return null;
+      }
+      this.#grounded('visually located element', match.node, 0, [
+        `vision box ${answer.value.confidence.toFixed(2)}`,
+        `overlap ${match.overlap.toFixed(2)}`,
+        match.centerInside ? 'centre inside element' : 'mostly covered',
+      ]);
+      return match.node;
+    });
+  }
+
+  /** Turn a visually located element into an open-element plan for an ambiguous page reference. */
+  async #visualProfile(
+    code: IntentProfile,
+    context: TabContext,
+    obs: Observation,
+    modelText: string,
+  ): Promise<{ profile: IntentProfile } | null> {
+    this.#tabId = context.tabId;
+    try {
+      const node = await this.#visualGround(modelText, obs);
+      if (!node) return null;
+      this.#proposer = 'vision';
+      const label =
+        (node.name ?? node.text ?? 'the item you described').slice(0, 120) ||
+        'the item you described';
+      return {
+        profile: {
+          ...code,
+          intent: 'navigate',
+          action: 'open_element',
+          query: null,
+          resolvedBy: 'vision',
+          confidence: 0.6,
+          entities: [
+            { type: ELEMENT_ENTITY, value: node.nodeId },
+            { type: ELEMENT_LABEL_ENTITY, value: label },
+          ],
+          targetSource: 'CURRENT_PAGE',
+          navigationPolicy: 'REUSE_CURRENT_CONTEXT',
+        },
+      };
+    } finally {
+      this.#tabId = null;
+    }
+  }
+
+  /** Open (or play) the element a model picked from the page it was shown. One click, verified. */
+  async #openElement(goal: Extract<Goal, { kind: 'open-element' }>) {
+    this.#checkBudget();
+    const obs = await this.#observe();
+    const node = obs.domNodes.find((n) => n.nodeId === goal.elementId);
+    if (!node || !node.visible) {
+      throw new HandoverError(`"${goal.label}" is no longer on the page.`, 'ambiguous');
+    }
+    this.#grounded('model-chosen element', node, 0, [`picked by ${this.#proposer}`]);
+    const before = await this.deps.host.probe(this.#tab, null);
+    if (!before) throw new HandoverError('The tab no longer shows a web page.', 'policy');
+    const openedBefore = await this.#openedTabs();
+    const clicked = await this.#execute(
+      obs,
+      node,
+      { type: 'CLICK' },
+      `Open ${describeNode(node)}`,
+      { kind: goal.media ? 'media-playing' : 'url-changed', description: 'the chosen item opens' },
+      0.7,
+    );
+    if (clicked.result.status !== 'executed') {
+      throw new HandoverError(
+        `Could not click "${goal.label}": ${clicked.result.code ?? ''} ${clicked.result.message}`,
+        'verification-failed',
+      );
+    }
+    let after = await this.#settle(before, NEW_TAB_CHECK_MS);
+    if (!after || samePage(before, after)) {
+      const adopted = await this.#adoptOpenedTab(openedBefore);
+      after = adopted ?? (await this.#settle(before, ACTION_SETTLE_MS - NEW_TAB_CHECK_MS));
+    }
+    if (after && isChallengePage(after, null, null)) {
+      throw new HandoverError(challengeMessage(after.url), 'policy');
+    }
+    const verdict = goal.media
+      ? await this.#verifyPlayback(before, after)
+      : verifyOpenResult({ before, after, media: false });
+    return { actionType: 'CLICK' as const, target: describeNode(node), ...verdict };
   }
 
   // ── context & website resolution ─────────────────────────────────────────────────────────
@@ -1249,7 +1577,7 @@ class TaskRun {
       const query = goal.query ?? currentQuery(obs);
       // Elements that try to instruct the agent are never candidates (the firewall is the backstop).
       const injected = scanInjection(obs).nodeIds;
-      const results = await this.#timed('grounding', async () =>
+      let results = await this.#timed('grounding', async () =>
         rankResults(obs, query, goal.ordinal).filter(
           (r) =>
             !injected.has(r.node.nodeId) &&
@@ -1268,6 +1596,25 @@ class TaskRun {
           await this.#settle(null, ACTION_SETTLE_MS);
           continue;
         }
+      }
+      if (results.length === 0 && !ladder.used('vision') && visionWorthTrying(obs)) {
+        ladder.decide(
+          5,
+          'alternative-strategy',
+          'vision',
+          'no result is identifiable from the page structure; looking at the screen',
+          'goal-open-result',
+        );
+        const which = goal.ordinal ? `result number ${goal.ordinal}` : 'the best result';
+        const node = await this.#visualGround(
+          `${which}${query ? ` for "${query}"` : ''} (a clickable item in the results list)`,
+          obs,
+        );
+        if (node && !injected.has(node.nodeId)) {
+          results = [{ node, score: 6, reasons: ['located visually'], matchedTerms: 0 }];
+        }
+      }
+      if (results.length === 0) {
         throw new HandoverError(
           excluded.size ? lastEvidence : 'No matching result could be found.',
           'ambiguous',
@@ -1278,6 +1625,8 @@ class TaskRun {
       const before = await this.deps.host.probe(this.#tab, null);
       if (!before) throw new HandoverError('The tab no longer shows a web page.', 'policy');
       const openedBefore = await this.#openedTabs();
+      const proposer = this.#proposer;
+      if (best.reasons.includes('located visually')) this.#proposer = 'vision';
       const clicked = await this.#execute(
         obs,
         best.node,
@@ -1286,6 +1635,7 @@ class TaskRun {
         { kind: goal.media ? 'media-playing' : 'url-changed', description: 'result opens' },
         Math.min(1, best.score / 12),
       );
+      this.#proposer = proposer;
       if (clicked.result.status !== 'executed') {
         lastEvidence = `${clicked.result.code}: ${clicked.result.message}`;
         ladder.decide(

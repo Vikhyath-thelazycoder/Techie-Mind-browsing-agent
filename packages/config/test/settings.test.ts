@@ -63,8 +63,8 @@ describe('resolveActiveModel — one authority, no substitution', () => {
     const model = resolveActiveModel(DEFAULT_SETTINGS);
     expect(model).toEqual({
       provider: 'ollama',
-      modelId: 'qwen2.5:7b',
-      label: 'qwen2.5:7b',
+      modelId: 'qwen2.5vl:7b',
+      label: 'qwen2.5vl:7b',
       endpoint: 'http://127.0.0.1:11434',
       local: true,
       configured: true,
@@ -103,7 +103,7 @@ describe('resolveActiveModel — one authority, no substitution', () => {
     if (backToLocal.ok) {
       const model = resolveActiveModel(backToLocal.value);
       expect(model.provider).toBe('ollama');
-      expect(model.modelId).toBe('qwen2.5:7b');
+      expect(model.modelId).toBe('qwen2.5vl:7b');
     }
   });
 

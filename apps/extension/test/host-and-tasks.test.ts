@@ -49,6 +49,7 @@ function api() {
       create: async () => ({}),
       update: async () => ({}),
       goBack: async () => {},
+      captureTab: async () => null,
     },
   } as unknown as WebExtensionApi;
   return { raw, onConnect, sendMessage, store };

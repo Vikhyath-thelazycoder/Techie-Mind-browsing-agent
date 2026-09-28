@@ -161,7 +161,7 @@ function ModelChip({ adapter, settings }: { adapter: BrowserAdapter; settings: S
         class="tm-pill"
         data-testid="model-chip"
         aria-expanded={open}
-        title="Model availability is checked by the model router (Phase 3)"
+        title="Availability is checked each time a task needs the model"
         onClick={() => setOpen(!open)}
       >
         <span

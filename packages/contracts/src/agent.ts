@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AuditEvent } from './audit.js';
 import { ACTION_TYPES } from './action.js';
 import { IntentProfile, NavigationPolicy, Target, TargetSource } from './intent.js';
+import { ModelUsage } from './model.js';
 import { Domain, Id, ShortText, Timestamp } from './primitives.js';
 import { TaskMode, TaskStatus } from './task.js';
 import { RecoveryDecision } from './verification.js';
@@ -46,13 +47,23 @@ export const StageTimings = z.strictObject({
   verificationMs: z.number().nonnegative(),
   /** Time waiting for the page to react to an action (loads, SPA transitions, results rendering). */
   waitMs: z.number().nonnegative(),
+  /** Time spent in text model tiers (Laya, local model, API). */
+  modelMs: z.number().nonnegative().default(0),
+  /** Visual fallback: capture + local redaction + vision model (0 when vision was not needed). */
+  visionMs: z.number().nonnegative().default(0),
   totalMs: z.number().nonnegative(),
   modelCalls: z.number().int().nonnegative(),
   observations: z.number().int().nonnegative(),
 });
 export type StageTimings = z.infer<typeof StageTimings>;
 
-export const GoalKind = z.enum(['use-context', 'navigate', 'search', 'open-result']);
+export const GoalKind = z.enum([
+  'use-context',
+  'navigate',
+  'search',
+  'open-result',
+  'open-element',
+]);
 export type GoalKind = z.infer<typeof GoalKind>;
 
 export const StepReport = z.strictObject({
@@ -139,6 +150,8 @@ export const TaskResult = z.strictObject({
   target: Target.nullable(),
   navigation: NavigationDecision.nullable().default(null),
   privacy: PrivacySummary.nullable().default(null),
+  /** Every model call of the task, in order (Phase 3). Empty when code handled everything. */
+  models: z.array(ModelUsage).max(20).default([]),
   steps: z.array(StepReport).max(50),
   timings: StageTimings,
   tabId: z.number().int().nonnegative().nullable(),

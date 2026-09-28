@@ -683,6 +683,39 @@ function unsupportedIntent(original: string, command: string): ResolvedIntent {
   return { profile, siteId: null };
 }
 
+/** Entity type marking a request that points at something on the page code cannot pick alone. */
+export const AMBIGUOUS_ENTITY = 'ambiguous';
+
+/**
+ * "the samsung one", "that one", "the one with 256 GB", "the cheapest one", "which of these":
+ * the user points at an item on screen by description. Code cannot know which element that is, so
+ * it must not guess (e.g. resolve a website called "samsung one") — this goes to the model tiers.
+ */
+const PAGE_REFERENCE_RE =
+  /(?:^|\s)(?:the|that|this)\s+(?:[\p{L}\p{N}-]+\s+){0,3}ones?(?=\s*(?:$|[,.?!]|(?:please|with|that|which|in|on|for|from|and|under|below|above|here|there|now)(?![\p{L}\p{N}])))|(?:^|\s)the\s+one\s+(?:with|that|which|in|for|from|under|below|above)\s|(?:^|\s)(?:of|from)\s+(?:these|those|them)(?![\p{L}\p{N}])|(?:^|\s)(?:which|what)\s+(?:one|of)\s/u;
+
+function ambiguousIntent(original: string, mention: SiteMention | null): ResolvedIntent {
+  const profile = IntentProfile.parse({
+    intent: 'unknown',
+    targetDomain: mention?.domain ?? null,
+    directNavigation: false,
+    action: null,
+    query: null,
+    constraints: [],
+    entities: [{ type: AMBIGUOUS_ENTITY, value: 'page-reference' }],
+    language: detectLanguage(original),
+    riskLevel: 'LOW',
+    requiresConfirmation: false,
+    confidence: 0.3,
+    resolvedBy: 'deterministic',
+    targetSource: mention ? 'EXPLICIT_USER_TARGET' : 'CURRENT_PAGE',
+    navigationPolicy: mention ? 'DIRECT_NAVIGATE' : 'REUSE_CURRENT_CONTEXT',
+    siteName: null,
+    ordinal: null,
+  });
+  return { profile, siteId: mention?.site?.id ?? null };
+}
+
 /** Words left over after "open <site>" that only restate the destination. */
 const NAV_LEFTOVER_NOISE = new Set([
   '',
@@ -707,6 +740,7 @@ export function resolveIntent(original: string): ResolvedIntent {
   const { constraints, rest: withoutConstraints } = extractConstraints(text);
   const mentionAfterConstraints = findSiteMention(withoutConstraints);
   const reference = clauseReference(removeSiteMention(withoutConstraints, mentionAfterConstraints));
+  if (!reference && PAGE_REFERENCE_RE.test(` ${text} `)) return ambiguousIntent(original, mention);
   const command = reference ? null : findCommand(withoutConstraints);
   const navigates =
     firstMatch(NAV_RE, withoutConstraints) !== null ||
