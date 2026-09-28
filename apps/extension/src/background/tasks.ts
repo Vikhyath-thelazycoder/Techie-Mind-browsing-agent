@@ -169,7 +169,11 @@ function redactOutput(output: TaskResult['output']): TaskResult['output'] {
     case 'text':
       return { ...output, title: redactForLog(output.title), text: redactForLog(output.text) };
     case 'list':
-      return { ...output, title: redactForLog(output.title), entries: output.entries.map(redactForLog) };
+      return {
+        ...output,
+        title: redactForLog(output.title),
+        entries: output.entries.map(redactForLog),
+      };
     case 'items':
       return {
         ...output,

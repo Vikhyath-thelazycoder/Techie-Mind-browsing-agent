@@ -299,7 +299,11 @@ function storeSite(url: URL, priceDelta = 0, brand = 'StoreKart'): string {
       ([title, price, old, rating], i) =>
         `<div class="card" style="display:inline-block;width:260px;margin:8px;vertical-align:top"><a href="/p/${i + 1}">${esc(title)}</a><div><s>₹${old.toLocaleString('en-IN')}</s> <b>₹${price.toLocaleString('en-IN')}</b></div><span>${rating} ★</span></div>`,
     ).join('');
-    return page(`${q} - StoreKart`, `${header}<main><h1>Results for ${esc(q)}</h1><div class="grid">${cards}</div><div style="height:2400px"></div></main>`, cartScript);
+    return page(
+      `${q} - StoreKart`,
+      `${header}<main><h1>Results for ${esc(q)}</h1><div class="grid">${cards}</div><div style="height:2400px"></div></main>`,
+      cartScript,
+    );
   }
   if (url.pathname.startsWith('/p/')) {
     const i = Number(url.pathname.slice(3)) - 1;
@@ -311,10 +315,17 @@ function storeSite(url: URL, priceDelta = 0, brand = 'StoreKart'): string {
     );
   }
   if (url.pathname === '/cart') {
-    return page('Your cart - StoreKart', `${header}<main><h1>Shopping cart</h1><button id="checkout">Proceed to checkout</button></main>`, `${cartScript}document.getElementById('checkout').onclick=()=>{location.href='/checkout/payment'};`);
+    return page(
+      'Your cart - StoreKart',
+      `${header}<main><h1>Shopping cart</h1><button id="checkout">Proceed to checkout</button></main>`,
+      `${cartScript}document.getElementById('checkout').onclick=()=>{location.href='/checkout/payment'};`,
+    );
   }
   if (url.pathname.startsWith('/checkout')) {
-    return page('Payment - StoreKart', `<main><h1>Pay now</h1><label>Card number <input name="card" autocomplete="cc-number"></label></main>`);
+    return page(
+      'Payment - StoreKart',
+      `<main><h1>Pay now</h1><label>Card number <input name="card" autocomplete="cc-number"></label></main>`,
+    );
   }
   if (url.pathname === '/address') {
     return page(

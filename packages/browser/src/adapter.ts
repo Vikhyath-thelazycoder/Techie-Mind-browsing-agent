@@ -211,8 +211,14 @@ export function createAdapter(kind: BrowserKind, api: WebExtensionApi): BrowserA
       try {
         const base = { x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 };
         await dbg.sendCommand(target, 'Input.dispatchMouseEvent', { ...base, type: 'mouseMoved' });
-        await dbg.sendCommand(target, 'Input.dispatchMouseEvent', { ...base, type: 'mousePressed' });
-        await dbg.sendCommand(target, 'Input.dispatchMouseEvent', { ...base, type: 'mouseReleased' });
+        await dbg.sendCommand(target, 'Input.dispatchMouseEvent', {
+          ...base,
+          type: 'mousePressed',
+        });
+        await dbg.sendCommand(target, 'Input.dispatchMouseEvent', {
+          ...base,
+          type: 'mouseReleased',
+        });
         return true;
       } catch {
         return false;

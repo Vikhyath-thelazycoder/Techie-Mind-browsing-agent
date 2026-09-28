@@ -21,13 +21,16 @@
     "test:watch": "vitest",
     "test:browser": "playwright test --project=browser",
     "lint:firefox": "web-ext lint --source-dir apps/extension/dist/firefox --self-hosted",
-    "verify": "node scripts/verify/phase3.mjs all",
+    "verify": "node scripts/verify/phase6.mjs all",
     "test:live": "playwright test --project=live",
     "verify:phase0": "node scripts/verify/phase0.mjs all",
     "verify:phase1": "node scripts/verify/phase1.mjs all",
     "bench:models": "tsx scripts/bench/models.ts",
     "verify:phase2": "node scripts/verify/phase2.mjs all",
-    "verify:phase3": "node scripts/verify/phase3.mjs all"
+    "verify:phase3": "node scripts/verify/phase3.mjs all",
+    "verify:phase4": "node scripts/verify/phase4.mjs all",
+    "verify:phase5": "node scripts/verify/phase5.mjs all",
+    "verify:phase6": "node scripts/verify/phase6.mjs all"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

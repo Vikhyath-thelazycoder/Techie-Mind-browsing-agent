@@ -29,7 +29,11 @@ test.describe('Phase 5 workflows — real browser', () => {
     context,
     extensionId,
   }) => {
-    const first = await runAgentTask(context, extensionId, `Open store.fixture.test and search for laptops under ₹50,000`);
+    const first = await runAgentTask(
+      context,
+      extensionId,
+      `Open store.fixture.test and search for laptops under ₹50,000`,
+    );
     expect(first.result.status, explain(first)).toBe('COMPLETED');
     expect(first.result.steps.map((s) => s.goal)).toEqual(['navigate', 'search', 'extract']);
     const out = first.result.output;
@@ -93,7 +97,8 @@ test.describe('Phase 5 workflows — real browser', () => {
     await expect(settings.getByTestId('profile-status')).toContainText('Saved');
     const stored = await settings.evaluate(() => chrome.storage.local.get(null));
     const storedText = JSON.stringify(stored);
-    for (const [, value] of fill) expect(storedText, 'profile stored in clear').not.toContain(value);
+    for (const [, value] of fill)
+      expect(storedText, 'profile stored in clear').not.toContain(value);
 
     const form = await openActive(context, extensionId, `${STORE}/address`);
     const run = await runAgentTask(context, extensionId, 'fill my delivery address');
@@ -119,7 +124,9 @@ test.describe('Phase 5 workflows — real browser', () => {
     });
     expect(await form.title()).not.toBe('SUBMITTED');
     // No profile value in the event stream, the result, history or the audit log.
-    const history = await settings.evaluate(() => chrome.storage.local.get(['techieMind.history', 'techieMind.audit']));
+    const history = await settings.evaluate(() =>
+      chrome.storage.local.get(['techieMind.history', 'techieMind.audit']),
+    );
     const visible = JSON.stringify([run.events, run.result, history]);
     for (const [, value] of fill.slice(0, 3)) expect(visible).not.toContain(value);
   });
@@ -143,10 +150,16 @@ test.describe('Phase 5 workflows — real browser', () => {
     context,
     extensionId,
   }) => {
-    const results = await openActive(context, extensionId, 'https://tube.fixture.test/results?q=kannada+songs');
+    const results = await openActive(
+      context,
+      extensionId,
+      'https://tube.fixture.test/results?q=kannada+songs',
+    );
     const run = await runAgentTask(context, extensionId, 'play the second result');
     expect(run.result.status, explain(run)).toBe('COMPLETED');
-    expect(run.events.some((e) => e.message.startsWith('Clicked with trusted browser input'))).toBe(true);
+    expect(run.events.some((e) => e.message.startsWith('Clicked with trusted browser input'))).toBe(
+      true,
+    );
     // Independent evidence from the page: a real user gesture, and unmuted playback.
     const state = await results.evaluate(() => {
       const v = document.querySelector('video');
@@ -172,9 +185,15 @@ test.describe('Phase 5 — trusted media off (autoplay blocked as a real Chrome 
       const key = 'techieMind.settings';
       const current = ((await chrome.storage.local.get(key))[key] ?? {}) as Record<string, unknown>;
       const agent = (current['agent'] ?? {}) as Record<string, unknown>;
-      await chrome.storage.local.set({ [key]: { ...current, agent: { ...agent, trustedMediaClicks: false } } });
+      await chrome.storage.local.set({
+        [key]: { ...current, agent: { ...agent, trustedMediaClicks: false } },
+      });
     });
-    const results = await openActive(context, extensionId, 'https://tube.fixture.test/results?q=kannada+songs');
+    const results = await openActive(
+      context,
+      extensionId,
+      'https://tube.fixture.test/results?q=kannada+songs',
+    );
     const run = await runAgentTask(context, extensionId, 'play the second result');
     expect(run.result.status, explain(run)).toBe('HUMAN_REQUIRED');
     expect(run.result.error?.message).toMatch(/Press Play/);

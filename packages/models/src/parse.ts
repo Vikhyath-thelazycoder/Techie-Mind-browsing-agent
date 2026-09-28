@@ -166,5 +166,7 @@ export function parseSummary(raw: unknown): string | null {
   const o = asObject(raw);
   if (!o || Object.keys(o).some((k) => k !== 'summary')) return null;
   const text = o['summary'];
-  return typeof text === 'string' && text.trim().length > 0 && text.length <= 4000 ? text.trim() : null;
+  return typeof text === 'string' && text.trim().length > 0 && text.length <= 4000
+    ? text.trim()
+    : null;
 }

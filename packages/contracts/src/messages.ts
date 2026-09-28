@@ -75,7 +75,9 @@ export const ExecuteCommand = z.strictObject({
    * last hop so the Action itself never carries personal data. The page is the user's own
    * destination for it; it is never logged.
    */
-  resolved: z.strictObject({ vaultToken: z.string().max(40), text: z.string().max(2000) }).optional(),
+  resolved: z
+    .strictObject({ vaultToken: z.string().max(40), text: z.string().max(2000) })
+    .optional(),
 });
 
 export const ExecuteRejection = z.enum([
@@ -207,7 +209,10 @@ export const ExtractTextResponse = z.strictObject({
 export type ExtractTextResponse = z.infer<typeof ExtractTextResponse>;
 
 /** Where a bound element is on screen right now (for a trusted click at its centre). */
-export const ElementRectCommand = z.strictObject({ type: z.literal('ELEMENT_RECT'), elementId: Id });
+export const ElementRectCommand = z.strictObject({
+  type: z.literal('ELEMENT_RECT'),
+  elementId: Id,
+});
 export const ElementRectResponse = z.strictObject({
   type: z.literal('ELEMENT_RECT_RESULT'),
   documentId: Id,

@@ -9,12 +9,27 @@ import { Monitor } from '@techie-mind/contracts';
  */
 export interface BrowserDataApi {
   bookmarks?: {
-    search(query: string | { url?: string; query?: string }): Promise<Array<{ id: string; url?: string; title: string }>>;
-    create(bookmark: { parentId?: string; title: string; url: string }): Promise<{ id: string; url?: string; title: string }>;
+    search(
+      query: string | { url?: string; query?: string },
+    ): Promise<Array<{ id: string; url?: string; title: string }>>;
+    create(bookmark: {
+      parentId?: string;
+      title: string;
+      url: string;
+    }): Promise<{ id: string; url?: string; title: string }>;
     remove(id: string): Promise<void>;
   };
   tabs: {
-    query(query: Record<string, unknown>): Promise<Array<{ id?: number; url?: string; title?: string; pinned?: boolean; active?: boolean; windowId?: number }>>;
+    query(query: Record<string, unknown>): Promise<
+      Array<{
+        id?: number;
+        url?: string;
+        title?: string;
+        pinned?: boolean;
+        active?: boolean;
+        windowId?: number;
+      }>
+    >;
     remove(tabIds: number[]): Promise<void>;
     group?(options: { tabIds: number[]; groupId?: number }): Promise<number>;
   };
@@ -22,7 +37,12 @@ export interface BrowserDataApi {
     update(groupId: number, props: { title?: string; collapsed?: boolean }): Promise<unknown>;
   };
   downloads?: {
-    download(options: { url: string; filename: string; saveAs?: boolean; conflictAction?: string }): Promise<number>;
+    download(options: {
+      url: string;
+      filename: string;
+      saveAs?: boolean;
+      conflictAction?: string;
+    }): Promise<number>;
   };
 }
 
@@ -35,7 +55,12 @@ const cleanUrl = (url: string) => url.split(/[?#]/)[0]!.slice(0, 2048);
 const safeName = (name: string) =>
   name
     .split('/')
-    .map((part) => part.replace(/[^A-Za-z0-9._ -]+/g, '-').replace(/^\.+/, '').slice(0, 80))
+    .map((part) =>
+      part
+        .replace(/[^A-Za-z0-9._ -]+/g, '-')
+        .replace(/^\.+/, '')
+        .slice(0, 80),
+    )
     .filter(Boolean)
     .join('/');
 
@@ -70,16 +95,14 @@ export function createBrowserData(api: BrowserDataApi, adapter: BrowserAdapter):
         const tabs = await api.tabs.query({});
         return tabs
           .filter((t) => typeof t.id === 'number')
-          .map(
-            (t): TabEntry => ({
-              id: t.id!,
-              url: t.url ?? '',
-              title: (t.title ?? '').slice(0, 300),
-              pinned: !!t.pinned,
-              active: !!t.active,
-              windowId: t.windowId ?? 0,
-            }),
-          );
+          .map((t): TabEntry => ({
+            id: t.id!,
+            url: t.url ?? '',
+            title: (t.title ?? '').slice(0, 300),
+            pinned: !!t.pinned,
+            active: !!t.active,
+            windowId: t.windowId ?? 0,
+          }));
       },
       async group(tabIds, title) {
         if (!api.tabs.group || !api.tabGroups) return false;
@@ -94,7 +117,11 @@ export function createBrowserData(api: BrowserDataApi, adapter: BrowserAdapter):
     readLater: {
       async add(page: SavedPage) {
         const list = (await readList(READ_LATER_KEY)) as SavedPage[];
-        const entry = { url: cleanUrl(page.url), title: page.title.slice(0, 300), savedAt: page.savedAt };
+        const entry = {
+          url: cleanUrl(page.url),
+          title: page.title.slice(0, 300),
+          savedAt: page.savedAt,
+        };
         await adapter.storageSet(
           READ_LATER_KEY,
           [entry, ...list.filter((p) => p.url !== entry.url)].slice(0, MAX_READ_LATER),

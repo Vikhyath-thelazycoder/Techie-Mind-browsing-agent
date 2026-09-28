@@ -4,13 +4,26 @@ import { extractItems, extractMainText, parsePrice } from '../src/extract.js';
 import { ElementRegistry } from '../src/registry.js';
 
 function dom(body: string) {
-  const { window } = new JSDOM(`<!doctype html><html><head><title>T</title></head><body>${body}</body></html>`, {
-    url: 'https://shop.fixture.test/search?q=x',
-    pretendToBeVisual: true,
-  });
+  const { window } = new JSDOM(
+    `<!doctype html><html><head><title>T</title></head><body>${body}</body></html>`,
+    {
+      url: 'https://shop.fixture.test/search?q=x',
+      pretendToBeVisual: true,
+    },
+  );
   // jsdom has no layout: give every element a box so visibility checks pass.
   window.HTMLElement.prototype.getBoundingClientRect = function () {
-    return { x: 10, y: 10, width: 200, height: 40, top: 10, left: 10, right: 210, bottom: 50, toJSON() {} } as DOMRect;
+    return {
+      x: 10,
+      y: 10,
+      width: 200,
+      height: 40,
+      top: 10,
+      left: 10,
+      right: 210,
+      bottom: 50,
+      toJSON() {},
+    } as DOMRect;
   };
   window.Element.prototype.checkVisibility = () => true;
   return window.document;
@@ -70,7 +83,9 @@ describe('extractItems — generic, no selectors', () => {
   });
 
   it('pages without prices return their result links (a search results page)', () => {
-    const doc = dom(`<main><a href="/watch?v=1">Kannada songs jukebox</a><a href="/watch?v=2">Kannada hits 2024</a></main>`);
+    const doc = dom(
+      `<main><a href="/watch?v=1">Kannada songs jukebox</a><a href="/watch?v=2">Kannada hits 2024</a></main>`,
+    );
     expect(extractItems(doc, new ElementRegistry()).map((i) => [i.title, i.price])).toEqual([
       ['Kannada songs jukebox', null],
       ['Kannada hits 2024', null],

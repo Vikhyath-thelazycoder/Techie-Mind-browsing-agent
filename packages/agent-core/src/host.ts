@@ -53,7 +53,12 @@ export interface BrowserData {
     list(): Promise<Monitor[]>;
   };
   /** Hand a file to the browser's download manager (text, or base64 for binary). */
-  download(file: { name: string; mime: string; content: string; base64?: boolean }): Promise<boolean>;
+  download(file: {
+    name: string;
+    mime: string;
+    content: string;
+    base64?: boolean;
+  }): Promise<boolean>;
 }
 import type { TabContext } from './router.js';
 
@@ -134,7 +139,10 @@ export interface AgentHost {
     options: {
       people: boolean;
       /** Numbered boxes drawn on the redacted image (screenshot walkthrough), page CSS pixels. */
-      marks?: Array<{ box: { x: number; y: number; width: number; height: number }; label: string }>;
+      marks?: Array<{
+        box: { x: number; y: number; width: number; height: number };
+        label: string;
+      }>;
     },
   ): Promise<VisualCapture | null>;
   /** Phase 6: bookmarks, tabs, read-later, monitors and downloads for the skills. */

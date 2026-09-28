@@ -21,27 +21,51 @@ async function openActive(context: BrowserContext, extensionId: string, url: str
 
 async function downloads(worker: Worker) {
   return worker.evaluate(async () =>
-    (await chrome.downloads.search({})).map((d) => ({ file: d.filename, mime: d.mime, bytes: d.fileSize, state: d.state })),
+    (await chrome.downloads.search({})).map((d) => ({
+      file: d.filename,
+      mime: d.mime,
+      bytes: d.fileSize,
+      state: d.state,
+    })),
   );
 }
 
 test.describe('Phase 6 skills — real browser', () => {
-  test('bookmark this page → read back; show bookmarks; remove this bookmark', async ({ context, extensionId, serviceWorker }) => {
+  test('bookmark this page → read back; show bookmarks; remove this bookmark', async ({
+    context,
+    extensionId,
+    serviceWorker,
+  }) => {
     await openActive(context, extensionId, `${STORE}/p/1?ref=home`);
     const add = await runAgentTask(context, extensionId, 'bookmark this page');
     expect(add.result.status, explain(add)).toBe('COMPLETED');
-    const found = await serviceWorker.evaluate(() => chrome.bookmarks.search({ url: 'https://store.fixture.test/p/1' }));
+    const found = await serviceWorker.evaluate(() =>
+      chrome.bookmarks.search({ url: 'https://store.fixture.test/p/1' }),
+    );
     expect(found.map((b) => b.url)).toEqual(['https://store.fixture.test/p/1']); // no query string kept
     const list = await runAgentTask(context, extensionId, 'show my bookmarks for dell');
     expect(list.result.output).toMatchObject({ kind: 'list', title: '1 bookmark(s) for "dell"' });
     const remove = await runAgentTask(context, extensionId, 'remove this bookmark');
     expect(remove.result.status, explain(remove)).toBe('COMPLETED');
-    expect(await serviceWorker.evaluate(() => chrome.bookmarks.search({ url: 'https://store.fixture.test/p/1' }))).toEqual([]);
+    expect(
+      await serviceWorker.evaluate(() =>
+        chrome.bookmarks.search({ url: 'https://store.fixture.test/p/1' }),
+      ),
+    ).toEqual([]);
   });
 
-  test('organize my tabs → tab groups by site; close duplicate tabs keeps one copy', async ({ context, extensionId, serviceWorker }) => {
+  test('organize my tabs → tab groups by site; close duplicate tabs keeps one copy', async ({
+    context,
+    extensionId,
+    serviceWorker,
+  }) => {
     await driverPage(context, extensionId);
-    for (const u of [`${STORE}/p/1`, `${STORE}/p/1`, `${STORE}/p/2`, 'https://mart.fixture.test/p/1']) {
+    for (const u of [
+      `${STORE}/p/1`,
+      `${STORE}/p/1`,
+      `${STORE}/p/2`,
+      'https://mart.fixture.test/p/1',
+    ]) {
       const p = await context.newPage();
       await p.goto(u);
     }
@@ -54,30 +78,55 @@ test.describe('Phase 6 skills — real browser', () => {
     expect(groups).toContain('store.fixture.test');
     const close = await runAgentTask(context, extensionId, 'close duplicate tabs');
     expect(close.result.status, explain(close)).toBe('COMPLETED');
-    const urls = await serviceWorker.evaluate(async () => (await chrome.tabs.query({})).map((t) => t.url));
+    const urls = await serviceWorker.evaluate(async () =>
+      (await chrome.tabs.query({})).map((t) => t.url),
+    );
     expect(urls.filter((u) => u === 'https://store.fixture.test/p/1')).toHaveLength(1);
   });
 
-  test('read later → stored without query string; save this page → Markdown download', async ({ context, extensionId, serviceWorker }) => {
+  test('read later → stored without query string; save this page → Markdown download', async ({
+    context,
+    extensionId,
+    serviceWorker,
+  }) => {
     await openActive(context, extensionId, `${STORE}/news?utm=mail`);
     const later = await runAgentTask(context, extensionId, 'save this for later');
     expect(later.result.status, explain(later)).toBe('COMPLETED');
-    const stored = await serviceWorker.evaluate(async () => (await chrome.storage.local.get('techieMind.readLater'))['techieMind.readLater']);
+    const stored = await serviceWorker.evaluate(
+      async () => (await chrome.storage.local.get('techieMind.readLater'))['techieMind.readLater'],
+    );
     expect(stored).toEqual([expect.objectContaining({ url: 'https://store.fixture.test/news' })]);
     const save = await runAgentTask(context, extensionId, 'save this page');
     expect(save.result.status, explain(save)).toBe('COMPLETED');
     // Playwright stores downloads under generated names; check the type and the file itself.
-    await expect.poll(async () => (await downloads(serviceWorker)).filter((d) => d.state === 'complete' && d.mime === 'text/markdown').length).toBe(1);
+    await expect
+      .poll(
+        async () =>
+          (await downloads(serviceWorker)).filter(
+            (d) => d.state === 'complete' && d.mime === 'text/markdown',
+          ).length,
+      )
+      .toBe(1);
     const file = (await downloads(serviceWorker)).find((d) => d.mime === 'text/markdown')!.file;
     const markdown = existsSync(file) ? readFileSync(file, 'utf8') : '';
     expect(markdown).toMatch(/^# Monsoon arrives in Kerala/);
     expect(markdown).toContain('Source: https://store.fixture.test/news');
     expect(markdown).not.toMatch(/asha\.verma@example\.com|98765 43210/);
-    expect(save.result.output).toMatchObject({ kind: 'list', title: 'Saved TechieMind/monsoon-arrives-in-kerala-storekart-news.md' });
+    expect(save.result.output).toMatchObject({
+      kind: 'list',
+      title: 'Saved TechieMind/monsoon-arrives-in-kerala-storekart-news.md',
+    });
   });
 
-  test('compare hp laptop prices on two stores → cheapest per store, from each store’s own page', async ({ context, extensionId }) => {
-    const run = await runAgentTask(context, extensionId, 'compare hp laptop prices on store.fixture.test and mart.fixture.test');
+  test('compare hp laptop prices on two stores → cheapest per store, from each store’s own page', async ({
+    context,
+    extensionId,
+  }) => {
+    const run = await runAgentTask(
+      context,
+      extensionId,
+      'compare hp laptop prices on store.fixture.test and mart.fixture.test',
+    );
     expect(run.result.status, explain(run)).toBe('COMPLETED');
     expect(run.result.output?.kind).toBe('items');
     if (run.result.output?.kind !== 'items') throw new Error('no items');
@@ -88,7 +137,10 @@ test.describe('Phase 6 skills — real browser', () => {
     expect(run.result.steps.filter((s) => s.goal === 'search')).toHaveLength(2);
   });
 
-  test('research laptops on the store → three sources read, every bullet cited', async ({ context, extensionId }) => {
+  test('research laptops on the store → three sources read, every bullet cited', async ({
+    context,
+    extensionId,
+  }) => {
     const run = await runAgentTask(context, extensionId, 'research laptops on store.fixture.test');
     expect(run.result.status, explain(run)).toBe('COMPLETED');
     expect(run.result.output?.kind).toBe('text');
@@ -97,14 +149,27 @@ test.describe('Phase 6 skills — real browser', () => {
     expect(run.result.output.text).toMatch(/Sources:\n\[1\] store\.fixture\.test\/p\//);
   });
 
-  test('screenshot walkthrough → numbered, redacted PNG saved; steps listed', async ({ context, extensionId, serviceWorker }) => {
+  test('screenshot walkthrough → numbered, redacted PNG saved; steps listed', async ({
+    context,
+    extensionId,
+    serviceWorker,
+  }) => {
     await openActive(context, extensionId, `${STORE}/search?q=laptops`);
     const run = await runAgentTask(context, extensionId, 'take a screenshot walkthrough');
     expect(run.result.status, explain(run)).toBe('COMPLETED');
     if (run.result.output?.kind !== 'list') throw new Error('no list');
     expect(run.result.output.entries[0]).toMatch(/^1\. Search for products/);
-    await expect.poll(async () => (await downloads(serviceWorker)).filter((d) => d.state === 'complete' && d.mime === 'image/png').length).toBe(1);
-    const png = readFileSync((await downloads(serviceWorker)).find((d) => d.mime === 'image/png')!.file);
+    await expect
+      .poll(
+        async () =>
+          (await downloads(serviceWorker)).filter(
+            (d) => d.state === 'complete' && d.mime === 'image/png',
+          ).length,
+      )
+      .toBe(1);
+    const png = readFileSync(
+      (await downloads(serviceWorker)).find((d) => d.mime === 'image/png')!.file,
+    );
     expect(png.subarray(1, 4).toString()).toBe('PNG');
     expect(run.result.output.title).toMatch(/store\.fixture\.test-walkthrough\.png/);
   });

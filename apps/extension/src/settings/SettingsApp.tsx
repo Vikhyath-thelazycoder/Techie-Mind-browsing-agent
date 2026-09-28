@@ -575,7 +575,9 @@ function ProfileSection({ adapter }: { adapter: BrowserAdapter }) {
     <>
       <PageHeader
         title="User Profile"
-        subtitle={'Saved personal details used for form filling ("fill this form with my profile").'}
+        subtitle={
+          'Saved personal details used for form filling ("fill this form with my profile").'
+        }
       />
       <Card
         icon="lock"
@@ -605,7 +607,12 @@ function ProfileSection({ adapter }: { adapter: BrowserAdapter }) {
         <button type="button" class="tm-btn-outline" onClick={() => void onClear()}>
           Remove profile
         </button>
-        <button type="button" class="tm-btn-save" data-testid="save-profile" onClick={() => void onSave()}>
+        <button
+          type="button"
+          class="tm-btn-save"
+          data-testid="save-profile"
+          onClick={() => void onSave()}
+        >
           Save Profile
         </button>
       </div>

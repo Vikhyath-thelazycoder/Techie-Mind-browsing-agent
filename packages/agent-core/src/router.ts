@@ -107,7 +107,7 @@ function hereTarget(context: TabContext): Target {
   });
 }
 
-export function siteTarget(domain: string, reason: Target["reason"]): Target {
+export function siteTarget(domain: string, reason: Target['reason']): Target {
   const site = siteForDomain(domain);
   return Target.parse({
     domain: site?.domain ?? domain,

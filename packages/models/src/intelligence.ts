@@ -353,16 +353,34 @@ export function createIntelligence(deps: IntelligenceDeps): Intelligence {
       const modelId = active.modelId;
       if (!active.local) {
         return {
-          usage: usage(tier, modelId, 'plan-action', 'unavailable', started, 'summaries run only on the local model'),
+          usage: usage(
+            tier,
+            modelId,
+            'plan-action',
+            'unavailable',
+            started,
+            'summaries run only on the local model',
+          ),
           value: null,
         };
       }
       const check = await checkActive();
       if (!check.ok) {
-        return { usage: usage(tier, modelId, 'plan-action', 'unavailable', started, check.reason), value: null };
+        return {
+          usage: usage(tier, modelId, 'plan-action', 'unavailable', started, check.reason),
+          value: null,
+        };
       }
       try {
-        const req = request(input.taskId, tier, modelId, 'summarize', 'summarize this page', input.intent, input.page);
+        const req = request(
+          input.taskId,
+          tier,
+          modelId,
+          'summarize',
+          'summarize this page',
+          input.intent,
+          input.page,
+        );
         const text = input.page.nodes
           .map((n) => `${n.role === 'heading' ? '## ' : ''}${n.text ?? n.name ?? ''}`)
           .join('\n')
@@ -377,12 +395,22 @@ export function createIntelligence(deps: IntelligenceDeps): Intelligence {
         });
         const value = parseSummary(content);
         return {
-          usage: usage(tier, modelId, 'plan-action', value ? 'answered' : 'invalid', started, value ? 'summary' : 'not a summary'),
+          usage: usage(
+            tier,
+            modelId,
+            'plan-action',
+            value ? 'answered' : 'invalid',
+            started,
+            value ? 'summary' : 'not a summary',
+          ),
           value,
         };
       } catch (error) {
         const { outcome, reason } = outcomeOf(error);
-        return { usage: usage(tier, modelId, 'plan-action', outcome, started, reason), value: null };
+        return {
+          usage: usage(tier, modelId, 'plan-action', outcome, started, reason),
+          value: null,
+        };
       }
     },
 

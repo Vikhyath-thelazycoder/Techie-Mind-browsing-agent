@@ -95,7 +95,11 @@ export interface WebExtensionApi {
   debugger?: {
     attach(target: { tabId: number }, version: string): Promise<void>;
     detach(target: { tabId: number }): Promise<void>;
-    sendCommand(target: { tabId: number }, method: string, params?: Record<string, unknown>): Promise<unknown>;
+    sendCommand(
+      target: { tabId: number },
+      method: string,
+      params?: Record<string, unknown>,
+    ): Promise<unknown>;
   };
   /** Chrome only. */
   sidePanel?: {

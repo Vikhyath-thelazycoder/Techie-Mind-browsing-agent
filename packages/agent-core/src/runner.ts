@@ -575,8 +575,7 @@ class TaskRun {
     }
     const start = this.#clock();
     // A vault token is resolved to its value only now, after the firewall authorized the action.
-    const token =
-      args.type === 'TYPE' && 'vaultToken' in args.input ? args.input.vaultToken : null;
+    const token = args.type === 'TYPE' && 'vaultToken' in args.input ? args.input.vaultToken : null;
     const value = token ? this.#vault.resolve(token, { consume: false }) : null;
     if (token && value === null) {
       return {
@@ -598,7 +597,11 @@ class TaskRun {
         ? this.deps.host.trustedClick.bind(this.deps.host)
         : null;
     const result = await this.#timed('action', async () => {
-      if (trustedClick && target && (await trustedClick(this.#tab, target.nodeId).catch(() => false))) {
+      if (
+        trustedClick &&
+        target &&
+        (await trustedClick(this.#tab, target.nodeId).catch(() => false))
+      ) {
         this.#emit('SYSTEM', 'Clicked with trusted browser input (so media may start with sound)', {
           actionId: action.actionId,
         });
@@ -1256,7 +1259,11 @@ class TaskRun {
       goal.maxPrice !== null
         ? `up to ${goal.maxPrice.toLocaleString('en-IN')}`
         : `from ${goal.minPrice?.toLocaleString('en-IN')}`;
-    await this.#itemsOutput(within, items.length, `${within.length} of ${items.length} results ${bound}`);
+    await this.#itemsOutput(
+      within,
+      items.length,
+      `${within.length} of ${items.length} results ${bound}`,
+    );
     const priced = items.filter((i) => i.price !== null).length;
     return {
       actionType: 'EXTRACT' as const,
@@ -1294,7 +1301,12 @@ class TaskRun {
       `${goal.by} of ${candidates.length} items: "${best.title.slice(0, 80)}"${best.price !== null ? ` · ${best.currency ?? ''} ${best.price}` : ''}`,
       { nodeId: best.elementId, by: goal.by, candidates: candidates.length },
     );
-    return this.#openElement({ kind: 'open-element', elementId: best.elementId, label: best.title.slice(0, 120), media: false });
+    return this.#openElement({
+      kind: 'open-element',
+      elementId: best.elementId,
+      label: best.title.slice(0, 120),
+      media: false,
+    });
   }
 
   async #viewportY(): Promise<number> {
@@ -1313,7 +1325,12 @@ class TaskRun {
       0.9,
     );
     if (result.status !== 'executed') {
-      return { actionType: 'SCROLL' as const, target: null, verified: false, evidence: result.message };
+      return {
+        actionType: 'SCROLL' as const,
+        target: null,
+        verified: false,
+        evidence: result.message,
+      };
     }
     await this.#timed('wait', () => new Promise((r) => setTimeout(r, 250)));
     const after = await this.#viewportY();
@@ -1367,12 +1384,19 @@ class TaskRun {
   }
 
   /** Cart evidence on a page: a cart-like address, an "added to cart" message, or a cart count. */
-  #cartState(obs: Observation, url: string): { count: number | null; added: boolean; onCart: boolean } {
+  #cartState(
+    obs: Observation,
+    url: string,
+  ): { count: number | null; added: boolean; onCart: boolean } {
     let count: number | null = null;
     let added = false;
     for (const n of obs.domNodes) {
       const text = `${n.name ?? ''} ${n.text ?? ''}`;
-      if (/added to (?:your )?(?:cart|bag|basket)|go to (?:cart|bag|basket)|view (?:cart|bag|basket)|item added/i.test(text)) {
+      if (
+        /added to (?:your )?(?:cart|bag|basket)|go to (?:cart|bag|basket)|view (?:cart|bag|basket)|item added/i.test(
+          text,
+        )
+      ) {
         added = true;
       }
       if (/\b(?:cart|bag|basket)\b/i.test(text)) {
@@ -1390,10 +1414,15 @@ class TaskRun {
       (n) =>
         n.visible &&
         n.interactive &&
-        /^(?:add to (?:cart|bag|basket)|add item to (?:cart|bag|basket))\b/i.test((n.name ?? n.text ?? '').trim()),
+        /^(?:add to (?:cart|bag|basket)|add item to (?:cart|bag|basket))\b/i.test(
+          (n.name ?? n.text ?? '').trim(),
+        ),
     );
     if (!button) {
-      throw new HandoverError('No "Add to cart" button is visible on this page. Open a product first.', 'ambiguous');
+      throw new HandoverError(
+        'No "Add to cart" button is visible on this page. Open a product first.',
+        'ambiguous',
+      );
     }
     const before = this.#cartState(obs, obs.url);
     const probeBefore = await this.deps.host.probe(this.#tab, null);
@@ -1407,7 +1436,12 @@ class TaskRun {
       0.85,
     );
     if (result.status !== 'executed') {
-      return { actionType: 'CLICK' as const, target: describeNode(button), verified: false, evidence: result.message };
+      return {
+        actionType: 'CLICK' as const,
+        target: describeNode(button),
+        verified: false,
+        evidence: result.message,
+      };
     }
     const settled = await this.#settle(probeBefore, ACTION_SETTLE_MS);
     const after = await this.#observe();
@@ -1441,7 +1475,8 @@ class TaskRun {
       (n) => n.visible && n.interactive && /check\s?out/i.test(label(n)),
     );
     const control = goal.target === 'checkout' ? (checkoutControl ?? cartLink) : cartLink;
-    if (!control) throw new HandoverError('No cart or checkout control is visible on this page.', 'ambiguous');
+    if (!control)
+      throw new HandoverError('No cart or checkout control is visible on this page.', 'ambiguous');
     this.#grounded('cart / checkout control', control, 5, ['named cart or checkout']);
     const before = await this.deps.host.probe(this.#tab, null);
     const { result } = await this.#execute(
@@ -1453,7 +1488,12 @@ class TaskRun {
       0.8,
     );
     if (result.status !== 'executed') {
-      return { actionType: 'CLICK' as const, target: describeNode(control), verified: false, evidence: result.message };
+      return {
+        actionType: 'CLICK' as const,
+        target: describeNode(control),
+        verified: false,
+        evidence: result.message,
+      };
     }
     const after = await this.#settle(before, ACTION_SETTLE_MS);
     const moved = !!after && !!before && !samePage(before, after);
@@ -1472,11 +1512,15 @@ class TaskRun {
     const load = this.deps.host.loadProfile?.bind(this.deps.host);
     const profile = load ? await load().catch(() => null) : null;
     if (!profile) {
-      throw new HandoverError('No saved profile yet. Add your details in Settings → Profile, then ask again.', 'policy');
+      throw new HandoverError(
+        'No saved profile yet. Add your details in Settings → Profile, then ask again.',
+        'policy',
+      );
     }
     const obs = await this.#observe();
     const fields = formFields(obs.domNodes);
-    if (fields.length === 0) throw new HandoverError('No form fields are visible on this page.', 'ambiguous');
+    if (fields.length === 0)
+      throw new HandoverError('No form fields are visible on this page.', 'ambiguous');
     const plans = fields.map((node) => planField(node, profile));
     const filled: string[] = [];
     const skipped: string[] = [];
@@ -1515,7 +1559,10 @@ class TaskRun {
         result.status === 'executed' &&
         (result.valueAfter ?? '').trim().toLowerCase() === plan.value.trim().toLowerCase();
       if (ok) filled.push(plan.field);
-      else skipped.push(`"${plan.field}" (${result.status === 'executed' ? 'value did not stick' : result.message})`);
+      else
+        skipped.push(
+          `"${plan.field}" (${result.status === 'executed' ? 'value did not stick' : result.message})`,
+        );
     }
     this.#output = {
       kind: 'list',
@@ -1563,15 +1610,39 @@ class TaskRun {
         title: title.slice(0, 512),
         createdAt: this.#now(),
         nodes: [
-          ...headings.slice(0, 40).map((h, i) => ({ nodeId: `h-${i}`, role: 'heading', name: null, text: h.slice(0, 2000), interactive: false, editable: false, bbox: null })),
-          ...paragraphs.slice(0, 120).map((p, i) => ({ nodeId: `p-${i}`, role: 'paragraph', name: null, text: p.slice(0, 2000), interactive: false, editable: false, bbox: null })),
+          ...headings.slice(0, 40).map((h, i) => ({
+            nodeId: `h-${i}`,
+            role: 'heading',
+            name: null,
+            text: h.slice(0, 2000),
+            interactive: false,
+            editable: false,
+            bbox: null,
+          })),
+          ...paragraphs.slice(0, 120).map((p, i) => ({
+            nodeId: `p-${i}`,
+            role: 'paragraph',
+            name: null,
+            text: p.slice(0, 2000),
+            interactive: false,
+            editable: false,
+            bbox: null,
+          })),
         ],
         findings: [],
         redactionCount: 0,
         sanitized: true,
       });
       const answer = await this.#timed('model', () =>
-        summarize({ taskId: this.task.taskId, intent: { ...(this.#intent ?? resolveIntent(this.task.text).profile), entities: [], constraints: [] }, page }),
+        summarize({
+          taskId: this.task.taskId,
+          intent: {
+            ...(this.#intent ?? resolveIntent(this.task.text).profile),
+            entities: [],
+            constraints: [],
+          },
+          page,
+        }),
       );
       this.#recordModel(answer.usage);
       if (answer.value) {
@@ -1581,11 +1652,23 @@ class TaskRun {
     }
     if (!summary) {
       // Extractive: the page's own first sentences, under its headings. No model needed.
-      const firstSentence = (p: string) => (/^.{20,240}?[.!?](?=\s|$)/.exec(p)?.[0] ?? p.slice(0, 200));
-      const bullets = [...(headings[0] ? [headings[0]] : []), ...paragraphs.slice(0, 5).map(firstSentence)];
-      summary = bullets.slice(0, 5).map((b) => `• ${b}`).join('\n');
+      const firstSentence = (p: string) =>
+        /^.{20,240}?[.!?](?=\s|$)/.exec(p)?.[0] ?? p.slice(0, 200);
+      const bullets = [
+        ...(headings[0] ? [headings[0]] : []),
+        ...paragraphs.slice(0, 5).map(firstSentence),
+      ];
+      summary = bullets
+        .slice(0, 5)
+        .map((b) => `• ${b}`)
+        .join('\n');
     }
-    this.#output = { kind: 'text', title: `Summary: ${title}`.slice(0, 200), text: summary.slice(0, 8000), source };
+    this.#output = {
+      kind: 'text',
+      title: `Summary: ${title}`.slice(0, 200),
+      text: summary.slice(0, 8000),
+      source,
+    };
     return {
       actionType: 'EXTRACT' as const,
       target: null,
@@ -1603,7 +1686,8 @@ class TaskRun {
     const id = profile.entities.find((e) => e.type === SKILL_ENTITY)?.value as SkillId;
     const arg = profile.entities.find((e) => e.type === SKILL_ARG_ENTITY)?.value ?? '';
     const listOnly =
-      (id === 'manage-bookmarks' && arg.startsWith('search')) || (id === 'read-later' && arg === 'list');
+      (id === 'manage-bookmarks' && arg.startsWith('search')) ||
+      (id === 'read-later' && arg === 'list');
     const needsPage = !TaskRun.#PAGELESS.has(id) && !listOnly;
     if (needsPage && !context) {
       return this.#finish('FAILED', {
@@ -1622,7 +1706,9 @@ class TaskRun {
     } else if (TaskRun.#PAGELESS.has(id) && id !== 'organize-tabs') {
       this.#tabId = await this.deps.host.prepareTab();
     }
-    this.#emit('TARGET_ROUTED', `Skill: ${id}${context ? ` on ${context.host}` : ''}`, { skill: id });
+    this.#emit('TARGET_ROUTED', `Skill: ${id}${context ? ` on ${context.host}` : ''}`, {
+      skill: id,
+    });
     const report = await this.#achieve({ kind: 'skill', id, arg });
     this.#steps.push(report);
     if (!report.verified) {
@@ -1637,7 +1723,11 @@ class TaskRun {
 
   #data(): BrowserData {
     const data = this.deps.host.browserData;
-    if (!data) throw new HandoverError('This skill needs browser access that is not available here.', 'policy');
+    if (!data)
+      throw new HandoverError(
+        'This skill needs browser access that is not available here.',
+        'policy',
+      );
     return data;
   }
 
@@ -1645,7 +1735,12 @@ class TaskRun {
     const probe = await this.deps.host.probe(this.#tab, null);
     if (!probe) throw new HandoverError('The tab no longer shows a web page.', 'policy');
     const u = new URL(probe.url);
-    return { url: probe.url, clean: `${u.origin}${u.pathname}`, title: probe.title, host: u.hostname };
+    return {
+      url: probe.url,
+      clean: `${u.origin}${u.pathname}`,
+      title: probe.title,
+      host: u.hostname,
+    };
   }
 
   async #skill(goal: Extract<Goal, { kind: 'skill' }>) {
@@ -1688,7 +1783,15 @@ class TaskRun {
     let rows: string[][] = [];
     if (items.length > 0) {
       await this.#itemsOutput(items, items.length, `${items.length} item(s) from ${page.host}`);
-      rows = [['title', 'price', 'currency', 'rating'], ...items.map((i) => [i.title, String(i.price ?? ''), i.currency ?? '', String(i.rating ?? '')])];
+      rows = [
+        ['title', 'price', 'currency', 'rating'],
+        ...items.map((i) => [
+          i.title,
+          String(i.price ?? ''),
+          i.currency ?? '',
+          String(i.rating ?? ''),
+        ]),
+      ];
     } else {
       const text = await this.deps.host.extractText?.(this.#tab).catch(() => null);
       const table = text?.tables?.[0];
@@ -1709,7 +1812,11 @@ class TaskRun {
       const content =
         format === 'csv'
           ? rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
-          : JSON.stringify(body.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? '']))), null, 2);
+          : JSON.stringify(
+              body.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? '']))),
+              null,
+              2,
+            );
       const ok = await this.#data().download({
         name: `${this.deps.settings.export.folder}/${page.host}-data.${format}`,
         mime: format === 'csv' ? 'text/csv' : 'application/json',
@@ -1717,12 +1824,19 @@ class TaskRun {
       });
       exported = ok ? ` · exported as ${format.toUpperCase()}` : ' · export failed';
     }
-    return this.#done(true, `read ${rows.length - 1} row(s) from ${page.host}${exported}`, page.host);
+    return this.#done(
+      true,
+      `read ${rows.length - 1} row(s) from ${page.host}${exported}`,
+      page.host,
+    );
   }
 
   /** The item on a results page that best matches the words of a product name, with a price. */
   #bestMatch(items: ExtractedItem[], product: string): ExtractedItem | null {
-    const words = product.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1);
+    const words = product
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((w) => w.length > 1);
     const need = Math.max(1, Math.ceil(words.length / 2));
     const scored = items
       .filter((i) => i.price !== null)
@@ -1764,7 +1878,10 @@ class TaskRun {
     const product = productPart.replace(/\bprices?\b/gu, '').trim();
     const domains = this.#domainsIn(sitesPart);
     if (!product || domains.length < 2) {
-      throw new HandoverError('Name the product and at least two stores, e.g. "compare iPhone 15 prices on Amazon and Flipkart".', 'ambiguous');
+      throw new HandoverError(
+        'Name the product and at least two stores, e.g. "compare iPhone 15 prices on Amazon and Flipkart".',
+        'ambiguous',
+      );
     }
     const found: NonNullable<Extract<TaskOutput, { kind: 'items' }>['items']> = [];
     const missing: string[] = [];
@@ -1775,7 +1892,14 @@ class TaskRun {
         missing.push(domain);
         continue;
       }
-      found.push({ title: match.title, price: match.price, currency: match.currency, rating: match.rating, url: null, source: domain });
+      found.push({
+        title: match.title,
+        price: match.price,
+        currency: match.currency,
+        rating: match.rating,
+        url: null,
+        source: domain,
+      });
     }
     found.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
     const best = found[0];
@@ -1787,7 +1911,10 @@ class TaskRun {
       items: found,
       total: domains.length,
     };
-    return this.#done(found.length >= 1, `compared ${domains.length} store(s): ${found.length} price(s) found${missing.length ? `, none on ${missing.join(', ')}` : ''}`);
+    return this.#done(
+      found.length >= 1,
+      `compared ${domains.length} store(s): ${found.length} price(s) found${missing.length ? `, none on ${missing.join(', ')}` : ''}`,
+    );
   }
 
   /** find-alternatives: search the item on the open site, drop the item itself, keep what fits. */
@@ -1798,16 +1925,30 @@ class TaskRun {
     const search = await this.#achieve({ kind: 'search', query: item });
     this.#steps.push(search);
     if (!search.verified) return this.#done(false, `could not search for "${item}"`);
-    const max = constraints.find((c) => c.field === 'price' && (c.op === '<' || c.op === '<='))?.value;
+    const max = constraints.find(
+      (c) => c.field === 'price' && (c.op === '<' || c.op === '<='),
+    )?.value;
     const items = await this.#readItems();
     const self = item.toLowerCase();
     const options = items
       .filter((i) => !i.title.toLowerCase().includes(self))
       .filter((i) => typeof max !== 'number' || (i.price !== null && i.price <= max))
-      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || (a.price ?? Infinity) - (b.price ?? Infinity))
+      .sort(
+        (a, b) =>
+          (b.rating ?? 0) - (a.rating ?? 0) || (a.price ?? Infinity) - (b.price ?? Infinity),
+      )
       .slice(0, 5);
-    await this.#itemsOutput(options, items.length, `${options.length} alternative(s) to "${item}"${typeof max === 'number' ? ` up to ₹${max.toLocaleString('en-IN')}` : ''}`);
-    return this.#done(options.length > 0, options.length ? `found ${options.length} alternative(s)` : 'no alternative within the constraints');
+    await this.#itemsOutput(
+      options,
+      items.length,
+      `${options.length} alternative(s) to "${item}"${typeof max === 'number' ? ` up to ₹${max.toLocaleString('en-IN')}` : ''}`,
+    );
+    return this.#done(
+      options.length > 0,
+      options.length
+        ? `found ${options.length} alternative(s)`
+        : 'no alternative within the constraints',
+    );
   }
 
   /** deep-research: search, open several sources in turn, extract evidence, synthesize with citations. */
@@ -1816,19 +1957,36 @@ class TaskRun {
     const topic = (m ? m[1]! : arg).trim();
     const domain = m ? m[2]! : siteById(DEFAULT_SEARCH_SITE)?.domain;
     if (!topic || !domain) throw new HandoverError('Say what to research.', 'ambiguous');
-    if (!(await this.#visitAndSearch(domain, topic))) return this.#done(false, `could not search ${domain} for "${topic}"`);
-    const results = (await this.#readItems()).slice(0, Math.min(3, this.deps.settings.research.maxSitesPerQuery));
+    if (!(await this.#visitAndSearch(domain, topic)))
+      return this.#done(false, `could not search ${domain} for "${topic}"`);
+    const results = (await this.#readItems()).slice(
+      0,
+      Math.min(3, this.deps.settings.research.maxSitesPerQuery),
+    );
     const sources: Array<{ n: number; where: string; text: string[] }> = [];
     for (const [index, result] of results.entries()) {
-      const open = await this.#achieve({ kind: 'open-element', elementId: result.elementId, label: result.title.slice(0, 120), media: false });
+      const open = await this.#achieve({
+        kind: 'open-element',
+        elementId: result.elementId,
+        label: result.title.slice(0, 120),
+        media: false,
+      });
       this.#steps.push(open);
       if (open.verified) {
         const text = await this.deps.host.extractText?.(this.#tab).catch(() => null);
         const page = await this.#page().catch(() => null);
-        const paras = (text?.paragraphs ?? []).slice(0, 3).map((p) => redactText(p, this.#vault).text);
-        if (page && paras.length) sources.push({ n: sources.length + 1, where: safePath(page.clean) === '/' ? page.host : `${page.host}${safePath(page.clean)}`, text: paras });
+        const paras = (text?.paragraphs ?? [])
+          .slice(0, 3)
+          .map((p) => redactText(p, this.#vault).text);
+        if (page && paras.length)
+          sources.push({
+            n: sources.length + 1,
+            where: safePath(page.clean) === '/' ? page.host : `${page.host}${safePath(page.clean)}`,
+            text: paras,
+          });
       }
-      if (index < results.length - 1) this.#steps.push(await this.#achieve({ kind: 'history', direction: 'back' }));
+      if (index < results.length - 1)
+        this.#steps.push(await this.#achieve({ kind: 'history', direction: 'back' }));
     }
     if (sources.length === 0) return this.#done(false, 'no source could be read');
     let synthesis: string | null = null;
@@ -1843,12 +2001,32 @@ class TaskRun {
         path: '/',
         title: `Research: ${redactText(topic, this.#vault).text}`.slice(0, 512),
         createdAt: this.#now(),
-        nodes: sources.flatMap((s) => s.text.map((t, i) => ({ nodeId: `s${s.n}-${i}`, role: 'paragraph', name: null, text: `[${s.n}] ${t}`.slice(0, 2000), interactive: false, editable: false, bbox: null }))),
+        nodes: sources.flatMap((s) =>
+          s.text.map((t, i) => ({
+            nodeId: `s${s.n}-${i}`,
+            role: 'paragraph',
+            name: null,
+            text: `[${s.n}] ${t}`.slice(0, 2000),
+            interactive: false,
+            editable: false,
+            bbox: null,
+          })),
+        ),
         findings: [],
         redactionCount: 0,
         sanitized: true,
       });
-      const answer = await this.#timed('model', () => summarize({ taskId: this.task.taskId, intent: { ...(this.#intent ?? resolveIntent(this.task.text).profile), entities: [], constraints: [] }, page }));
+      const answer = await this.#timed('model', () =>
+        summarize({
+          taskId: this.task.taskId,
+          intent: {
+            ...(this.#intent ?? resolveIntent(this.task.text).profile),
+            entities: [],
+            constraints: [],
+          },
+          page,
+        }),
+      );
       this.#recordModel(answer.usage);
       if (answer.value) {
         synthesis = answer.value;
@@ -1860,8 +2038,16 @@ class TaskRun {
       synthesis = sources.map((s) => `• ${first(s.text[0]!)} [${s.n}]`).join('\n');
     }
     const cites = sources.map((s) => `[${s.n}] ${s.where}`).join('\n');
-    this.#output = { kind: 'text', title: `Research: ${topic}`.slice(0, 200), text: `${synthesis}\n\nSources:\n${cites}`.slice(0, 8000), source: origin };
-    return this.#done(sources.length >= 2, `read ${sources.length} of ${results.length} source(s)${sources.length < 2 ? ' — fewer than two, reported as is' : ''}`);
+    this.#output = {
+      kind: 'text',
+      title: `Research: ${topic}`.slice(0, 200),
+      text: `${synthesis}\n\nSources:\n${cites}`.slice(0, 8000),
+      source: origin,
+    };
+    return this.#done(
+      sources.length >= 2,
+      `read ${sources.length} of ${results.length} source(s)${sources.length < 2 ? ' — fewer than two, reported as is' : ''}`,
+    );
   }
 
   async #skillBookmarks(arg: string) {
@@ -1869,42 +2055,77 @@ class TaskRun {
     const data = this.#data();
     if (op === 'search') {
       const found = await data.bookmarks.search(query);
-      this.#output = { kind: 'list', title: `${found.length} bookmark(s)${query ? ` for "${query}"` : ''}`, entries: found.slice(0, 100).map((b) => `${b.title} — ${b.url}`) };
+      this.#output = {
+        kind: 'list',
+        title: `${found.length} bookmark(s)${query ? ` for "${query}"` : ''}`,
+        entries: found.slice(0, 100).map((b) => `${b.title} — ${b.url}`),
+      };
       return this.#done(true, `${found.length} bookmark(s) found`);
     }
     const page = await this.#page();
-    const existing = (await data.bookmarks.search(page.clean)).filter((b) => b.url.split(/[?#]/)[0] === page.clean);
+    const existing = (await data.bookmarks.search(page.clean)).filter(
+      (b) => b.url.split(/[?#]/)[0] === page.clean,
+    );
     if (op === 'remove') {
       if (existing.length === 0) return this.#done(false, 'this page is not bookmarked');
       if (existing.length > 1) {
-        this.#output = { kind: 'list', title: 'Several bookmarks match — none removed', entries: existing.map((b) => `${b.title} — ${b.url}`) };
-        return this.#done(false, `${existing.length} bookmarks match this page; remove the one you want yourself`);
+        this.#output = {
+          kind: 'list',
+          title: 'Several bookmarks match — none removed',
+          entries: existing.map((b) => `${b.title} — ${b.url}`),
+        };
+        return this.#done(
+          false,
+          `${existing.length} bookmarks match this page; remove the one you want yourself`,
+        );
       }
       await data.bookmarks.remove(existing[0]!.id);
-      const after = (await data.bookmarks.search(page.clean)).filter((b) => b.url.split(/[?#]/)[0] === page.clean);
-      return this.#done(after.length === 0, after.length === 0 ? 'bookmark removed' : 'the bookmark is still there', page.host);
+      const after = (await data.bookmarks.search(page.clean)).filter(
+        (b) => b.url.split(/[?#]/)[0] === page.clean,
+      );
+      return this.#done(
+        after.length === 0,
+        after.length === 0 ? 'bookmark removed' : 'the bookmark is still there',
+        page.host,
+      );
     }
     if (existing.length > 0) return this.#done(true, 'already bookmarked', page.host);
     await data.bookmarks.add({ url: page.clean, title: page.title || page.host });
-    const after = (await data.bookmarks.search(page.clean)).some((b) => b.url.split(/[?#]/)[0] === page.clean);
-    this.#output = { kind: 'list', title: 'Bookmarked', entries: [`${page.title || page.host} — ${page.clean}`] };
-    return this.#done(after, after ? 'bookmark added and read back' : 'the bookmark could not be read back', page.host);
+    const after = (await data.bookmarks.search(page.clean)).some(
+      (b) => b.url.split(/[?#]/)[0] === page.clean,
+    );
+    this.#output = {
+      kind: 'list',
+      title: 'Bookmarked',
+      entries: [`${page.title || page.host} — ${page.clean}`],
+    };
+    return this.#done(
+      after,
+      after ? 'bookmark added and read back' : 'the bookmark could not be read back',
+      page.host,
+    );
   }
 
   async #skillMonitor(arg: string) {
     const page = await this.#page();
-    if (!page.clean.startsWith('https://')) return this.#done(false, 'only https pages can be monitored');
+    if (!page.clean.startsWith('https://'))
+      return this.#done(false, 'only https pages can be monitored');
     const threshold = /(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(k|lakh)?/iu.exec(arg);
     let value = threshold ? Number(threshold[1]!.replace(/,/g, '')) : null;
     if (value !== null && threshold?.[2]) value *= threshold[2].toLowerCase() === 'k' ? 1e3 : 1e5;
     const text = await this.deps.host.extractText?.(this.#tab).catch(() => null);
-    const pricing = /(?:₹|rs\.?|inr)\s?([\d,]+(?:\.\d+)?)/iu.exec([...(text?.headings ?? []), ...(text?.paragraphs ?? [])].join(' '));
+    const pricing = /(?:₹|rs\.?|inr)\s?([\d,]+(?:\.\d+)?)/iu.exec(
+      [...(text?.headings ?? []), ...(text?.paragraphs ?? [])].join(' '),
+    );
     const baseline = pricing ? Number(pricing[1]!.replace(/,/g, '')) : null;
     const monitor: Monitor = {
       monitorId: this.#newId('mon'),
       ownerId: 'local-user',
       url: page.clean,
-      condition: value && value > 0 ? { kind: 'price-below', threshold: value, currency: 'INR' } : { kind: 'content-changed' },
+      condition:
+        value && value > 0
+          ? { kind: 'price-below', threshold: value, currency: 'INR' }
+          : { kind: 'content-changed' },
       intervalMinutes: 60,
       status: 'active',
       recipientId: 'local-user',
@@ -1919,12 +2140,20 @@ class TaskRun {
       title: 'Monitor saved',
       entries: [
         `Page: ${page.clean}`,
-        monitor.condition.kind === 'price-below' ? `Notify when the price is below ₹${monitor.condition.threshold.toLocaleString('en-IN')}` : 'Notify when the page changes',
-        baseline !== null ? `Price now: ₹${baseline.toLocaleString('en-IN')}` : 'No price found on the page right now',
+        monitor.condition.kind === 'price-below'
+          ? `Notify when the price is below ₹${monitor.condition.threshold.toLocaleString('en-IN')}`
+          : 'Notify when the page changes',
+        baseline !== null
+          ? `Price now: ₹${baseline.toLocaleString('en-IN')}`
+          : 'No price found on the page right now',
         'Checks every 60 minutes once the monitoring backend is connected (Batch C).',
       ],
     };
-    return this.#done(stored, stored ? 'monitor stored and listed' : 'the monitor could not be stored', page.host);
+    return this.#done(
+      stored,
+      stored ? 'monitor stored and listed' : 'the monitor could not be stored',
+      page.host,
+    );
   }
 
   async #skillTabs(arg: string) {
@@ -1943,17 +2172,30 @@ class TaskRun {
       if (close.length) await data.tabs.close(close);
       const left = new Set((await data.tabs.list()).map((t) => t.id));
       const closed = close.filter((id) => !left.has(id)).length;
-      this.#output = { kind: 'list', title: `Closed ${closed} duplicate tab(s)`, entries: duplicates.map((g) => `${g[0]!.title || g[0]!.url} — ${g.length} copies → 1`) };
-      return this.#done(closed === close.length, `closed ${closed} of ${close.length} duplicate tab(s)`);
+      this.#output = {
+        kind: 'list',
+        title: `Closed ${closed} duplicate tab(s)`,
+        entries: duplicates.map((g) => `${g[0]!.title || g[0]!.url} — ${g.length} copies → 1`),
+      };
+      return this.#done(
+        closed === close.length,
+        `closed ${closed} of ${close.length} duplicate tab(s)`,
+      );
     }
     const byHost = new Map<string, typeof tabs>();
     for (const t of tabs) {
       const host = new URL(t.url).hostname.replace(/^www\./, '');
       byHost.set(host, [...(byHost.get(host) ?? []), t]);
     }
-    const entries = [...byHost.entries()].sort((a, b) => b[1].length - a[1].length).map(([h, g]) => `${h}: ${g.length} tab(s)`);
+    const entries = [...byHost.entries()]
+      .sort((a, b) => b[1].length - a[1].length)
+      .map(([h, g]) => `${h}: ${g.length} tab(s)`);
     if (arg === 'duplicates') {
-      this.#output = { kind: 'list', title: `${duplicates.length} page(s) open more than once`, entries: duplicates.map((g) => `${g[0]!.title || g[0]!.url} — ${g.length} copies`) };
+      this.#output = {
+        kind: 'list',
+        title: `${duplicates.length} page(s) open more than once`,
+        entries: duplicates.map((g) => `${g[0]!.title || g[0]!.url} — ${g.length} copies`),
+      };
       return this.#done(true, `${duplicates.length} duplicate group(s)`);
     }
     let grouped = 0;
@@ -1966,27 +2208,57 @@ class TaskRun {
     }
     this.#output = {
       kind: 'list',
-      title: supported ? `Grouped tabs by site (${grouped} group(s))` : 'This browser has no tab groups — tabs by site',
-      entries: [...entries, ...(duplicates.length ? [`${duplicates.length} page(s) are open more than once — say "close duplicate tabs" to close the extra copies`] : [])],
+      title: supported
+        ? `Grouped tabs by site (${grouped} group(s))`
+        : 'This browser has no tab groups — tabs by site',
+      entries: [
+        ...entries,
+        ...(duplicates.length
+          ? [
+              `${duplicates.length} page(s) are open more than once — say "close duplicate tabs" to close the extra copies`,
+            ]
+          : []),
+      ],
     };
-    return this.#done(true, supported ? `${grouped} group(s) created for ${tabs.length} tab(s)` : `listed ${tabs.length} tab(s) by site`);
+    return this.#done(
+      true,
+      supported
+        ? `${grouped} group(s) created for ${tabs.length} tab(s)`
+        : `listed ${tabs.length} tab(s) by site`,
+    );
   }
 
   async #skillReadLater(arg: string) {
     const data = this.#data();
     if (arg === 'list') {
       const list = await data.readLater.list();
-      this.#output = { kind: 'list', title: `${list.length} page(s) to read later`, entries: list.map((p) => `${p.title} — ${p.url}`) };
+      this.#output = {
+        kind: 'list',
+        title: `${list.length} page(s) to read later`,
+        entries: list.map((p) => `${p.title} — ${p.url}`),
+      };
       return this.#done(true, `${list.length} saved page(s)`);
     }
     const page = await this.#page();
     if (arg === 'remove') {
       const removed = await data.readLater.remove(page.clean);
-      return this.#done(removed, removed ? 'removed from read later' : 'this page was not in the read-later list', page.host);
+      return this.#done(
+        removed,
+        removed ? 'removed from read later' : 'this page was not in the read-later list',
+        page.host,
+      );
     }
-    await data.readLater.add({ url: page.clean, title: (page.title || page.host).slice(0, 300), savedAt: this.#now() });
+    await data.readLater.add({
+      url: page.clean,
+      title: (page.title || page.host).slice(0, 300),
+      savedAt: this.#now(),
+    });
     const ok = (await data.readLater.list()).some((p) => p.url === page.clean);
-    this.#output = { kind: 'list', title: 'Saved for later', entries: [`${page.title || page.host} — ${page.clean}`] };
+    this.#output = {
+      kind: 'list',
+      title: 'Saved for later',
+      entries: [`${page.title || page.host} — ${page.clean}`],
+    };
     return this.#done(ok, ok ? 'saved (address and title only)' : 'could not be saved', page.host);
   }
 
@@ -2008,10 +2280,22 @@ class TaskRun {
       '',
       ...text.paragraphs.map((p) => `${clean(p)}\n`),
     ].join('\n');
-    const slug = (text.title || page.host).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'page';
+    const slug =
+      (text.title || page.host)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 60) || 'page';
     const name = `${this.deps.settings.export.folder}/${slug}.md`;
     const ok = await this.#data().download({ name, mime: 'text/markdown', content: markdown });
-    this.#output = { kind: 'list', title: ok ? `Saved ${name}` : 'Could not save the page', entries: [`${text.paragraphs.length} paragraph(s), ${markdown.length} characters`, 'Personal data and secrets in the text were replaced by placeholders.'] };
+    this.#output = {
+      kind: 'list',
+      title: ok ? `Saved ${name}` : 'Could not save the page',
+      entries: [
+        `${text.paragraphs.length} paragraph(s), ${markdown.length} characters`,
+        'Personal data and secrets in the text were replaced by placeholders.',
+      ],
+    };
     return this.#done(ok, ok ? `saved ${name}` : 'the browser refused the download', page.host);
   }
 
@@ -2020,14 +2304,26 @@ class TaskRun {
     if (!capture) throw new HandoverError('Screenshots are not available here.', 'policy');
     const obs = await this.#observe();
     const top = obs.viewport.scrollY;
-    const inView = (n: DOMNode) => !!n.bbox && n.bbox.y >= top && n.bbox.y < top + obs.viewport.height;
+    const inView = (n: DOMNode) =>
+      !!n.bbox && n.bbox.y >= top && n.bbox.y < top + obs.viewport.height;
     const injected = scanInjection(obs).nodeIds;
-    const candidates = obs.domNodes.filter((n) => n.visible && n.interactive && inView(n) && (n.name ?? n.text ?? '').trim() && !injected.has(n.nodeId));
-    const search = candidates.filter((n) => n.role === 'searchbox' || n.attributes['tm:form-role'] === 'search');
+    const candidates = obs.domNodes.filter(
+      (n) =>
+        n.visible &&
+        n.interactive &&
+        inView(n) &&
+        (n.name ?? n.text ?? '').trim() &&
+        !injected.has(n.nodeId),
+    );
+    const search = candidates.filter(
+      (n) => n.role === 'searchbox' || n.attributes['tm:form-role'] === 'search',
+    );
     const rest = candidates
       .filter((n) => !search.includes(n))
-      .sort((a, b) => (b.bbox!.width * b.bbox!.height) - (a.bbox!.width * a.bbox!.height));
-    const picked = [...search.slice(0, 1), ...rest].slice(0, 6).sort((a, b) => a.bbox!.y - b.bbox!.y || a.bbox!.x - b.bbox!.x);
+      .sort((a, b) => b.bbox!.width * b.bbox!.height - a.bbox!.width * a.bbox!.height);
+    const picked = [...search.slice(0, 1), ...rest]
+      .slice(0, 6)
+      .sort((a, b) => a.bbox!.y - b.bbox!.y || a.bbox!.x - b.bbox!.x);
     const shot = await capture(this.#tab, {
       people: this.deps.settings.privacy.faceBlurring,
       marks: picked.map((n, i) => ({ box: n.bbox!, label: String(i + 1) })),
@@ -2035,7 +2331,12 @@ class TaskRun {
     if (!shot) return this.#done(false, 'the tab could not be captured (it must be visible)');
     const page = await this.#page();
     const name = `${this.deps.settings.export.folder}/${page.host}-walkthrough.png`;
-    const ok = await this.#data().download({ name, mime: 'image/png', content: shot.image.base64, base64: true });
+    const ok = await this.#data().download({
+      name,
+      mime: 'image/png',
+      content: shot.image.base64,
+      base64: true,
+    });
     const hint = (n: DOMNode) =>
       n.editable || n.role === 'searchbox'
         ? 'type here'
@@ -2048,11 +2349,18 @@ class TaskRun {
       kind: 'list',
       title: `Walkthrough of ${page.host}${ok ? ` — saved ${name}` : ''}`,
       entries: [
-        ...picked.map((n, i) => `${i + 1}. ${redactForLog((n.name ?? n.text ?? '').trim()).slice(0, 80)} (${n.role ?? n.tag}) — ${hint(n)}`),
+        ...picked.map(
+          (n, i) =>
+            `${i + 1}. ${redactForLog((n.name ?? n.text ?? '').trim()).slice(0, 80)} (${n.role ?? n.tag}) — ${hint(n)}`,
+        ),
         `${shot.image.regions} sensitive region(s) were painted over in the screenshot.`,
       ],
     };
-    return this.#done(ok && picked.length > 0, `${picked.length} region(s) marked; ${shot.image.regions} redacted; ${ok ? 'image saved' : 'save failed'}`, page.host);
+    return this.#done(
+      ok && picked.length > 0,
+      `${picked.length} region(s) marked; ${shot.image.regions} redacted; ${ok ? 'image saved' : 'save failed'}`,
+      page.host,
+    );
   }
 
   // ── context & website resolution ─────────────────────────────────────────────────────────

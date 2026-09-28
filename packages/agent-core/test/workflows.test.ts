@@ -96,7 +96,13 @@ describe('Phase 5 — forms from the encrypted profile', () => {
     expect(site.values.has('f-company')).toBe(false);
     expect(site.values.has('f-pass')).toBe(false);
     // Never submitted.
-    expect(site.executed.some((e) => e.action.binding.target?.kind === 'element' && e.action.binding.target.elementId === 'submit')).toBe(false);
+    expect(
+      site.executed.some(
+        (e) =>
+          e.action.binding.target?.kind === 'element' &&
+          e.action.binding.target.elementId === 'submit',
+      ),
+    ).toBe(false);
     // Typed actions carry tokens, never the values; the values travel only in `resolved`.
     const typed = site.executed.filter((e) => e.action.args.type === 'TYPE');
     expect(typed.length).toBe(6);
@@ -106,7 +112,13 @@ describe('Phase 5 — forms from the encrypted profile', () => {
     }
     // No raw profile value in events, TaskResult or the output list.
     const visible = JSON.stringify([events, { ...result, output: result.output }]);
-    for (const raw of ['Asha Verma', 'asha.verma@example.com', '98765 43210', '12 MG Road', '560001']) {
+    for (const raw of [
+      'Asha Verma',
+      'asha.verma@example.com',
+      '98765 43210',
+      '12 MG Road',
+      '560001',
+    ]) {
       expect(visible).not.toContain(raw);
     }
     expect(result.output?.kind).toBe('list');
@@ -152,7 +164,14 @@ describe('Phase 5 — summaries', () => {
         seen.push(input);
         return {
           value: '• The monsoon reached Kerala early.\n• Farmers welcome it.',
-          usage: ModelUsage.parse({ tier: 'qwen', modelId: 'qwen2.5vl:7b', purpose: 'plan-action', outcome: 'answered', latencyMs: 900, reason: 'summary' }),
+          usage: ModelUsage.parse({
+            tier: 'qwen',
+            modelId: 'qwen2.5vl:7b',
+            purpose: 'plan-action',
+            outcome: 'answered',
+            latencyMs: 900,
+            reason: 'summary',
+          }),
         };
       },
     };
@@ -173,14 +192,19 @@ describe('Phase 5 — trusted media clicks', () => {
     const { result, events } = await run(site, 'play the second result');
     expect(result.status).toBe('COMPLETED');
     expect(site.trusted).toEqual(['p2']);
-    expect(events.some((e) => e.message.startsWith('Clicked with trusted browser input'))).toBe(true);
+    expect(events.some((e) => e.message.startsWith('Clicked with trusted browser input'))).toBe(
+      true,
+    );
     // The firewall authorized the same CLICK before the trusted input was used.
     expect(events.some((e) => e.type === 'ACTION_ALLOWED')).toBe(true);
   });
 
   it('trusted clicks switched off: the agent opens it and asks you to press Play (as before)', async () => {
     const site = shop('/search?q=laptops', null, { trustedInput: true, media: true });
-    const settings = { ...DEFAULT_SETTINGS, agent: { ...DEFAULT_SETTINGS.agent, trustedMediaClicks: false } };
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      agent: { ...DEFAULT_SETTINGS.agent, trustedMediaClicks: false },
+    };
     const { result } = await run(site, 'play the second result', { settings });
     expect(site.trusted).toEqual([]);
     expect(result.status).toBe('HUMAN_REQUIRED');

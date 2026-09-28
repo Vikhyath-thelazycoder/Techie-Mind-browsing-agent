@@ -164,7 +164,16 @@ export function ResultCard({ result }: { result: TaskResult }) {
 
 function money(price: number | null, currency: string | null): string {
   if (price === null) return '';
-  const symbol = currency === 'INR' ? '₹' : currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '';
+  const symbol =
+    currency === 'INR'
+      ? '₹'
+      : currency === 'USD'
+        ? '$'
+        : currency === 'EUR'
+          ? '€'
+          : currency === 'GBP'
+            ? '£'
+            : '';
   return `${symbol}${price.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US')}`;
 }
 
@@ -177,7 +186,9 @@ function OutputView({ output }: { output: NonNullable<TaskResult['output']> }) {
         <>
           <p class="tm-output-text">{output.text}</p>
           <small class="tm-muted">
-            {output.source === 'model' ? 'Written by your local model from redacted text' : 'Taken from the page (no model)'}
+            {output.source === 'model'
+              ? 'Written by your local model from redacted text'
+              : 'Taken from the page (no model)'}
           </small>
         </>
       ) : null}

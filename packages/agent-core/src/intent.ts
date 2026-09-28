@@ -1,4 +1,10 @@
-import { Domain, IntentProfile, type Constraint, type Language, type SkillId } from '@techie-mind/contracts';
+import {
+  Domain,
+  IntentProfile,
+  type Constraint,
+  type Language,
+  type SkillId,
+} from '@techie-mind/contracts';
 import { KNOWN_SITES, siteForDomain, type SiteEntry } from './sites.js';
 import { escapeRegExp, normalize } from './text.js';
 import { detectSkill, SKILL_ARG_ENTITY, SKILL_ENTITY } from './skills.js';
@@ -691,39 +697,40 @@ export const COMMAND_ENTITY = 'command';
  * Page commands the agent performs on the open page (Phase 5). Matched on the whole request after
  * conversational openers are removed; each maps to one generic goal — never to a site script.
  */
-const PAGE_COMMANDS: Array<{ re: RegExp; action: string; param: (m: RegExpExecArray) => string }> = [
-  {
-    re: /^scroll(?:\s+(?:the\s+page\s+)?(up|down))?(?:\s+(?:a\s+(?:bit|little)|more|further|again|please))*$/u,
-    action: 'scroll',
-    param: (m) => m[1] ?? 'down',
-  },
-  {
-    re: /^(?:go\s+)?back(?:\s+(?:to\s+(?:the\s+)?(?:previous|last)\s+page|please))?$|^(?:go\s+to\s+)?(?:the\s+)?previous\s+page$/u,
-    action: 'go_back',
-    param: () => 'back',
-  },
-  { re: /^go\s+forward$/u, action: 'go_forward', param: () => 'forward' },
-  {
-    re: /^(?:add|put)\b(?:\s+(?:it|this|that|the\s+item|this\s+item|this\s+product|one))?\s+(?:to|in|into)\s+(?:the\s+|my\s+)?(?:cart|basket|bag)$/u,
-    action: 'add_to_cart',
-    param: () => 'cart',
-  },
-  {
-    re: /^(?:(?:go|proceed|continue)\s+to\s+|open\s+)(?:the\s+|my\s+)?(?:check\s?out|cart|basket|bag)$|^check\s?out$/u,
-    action: 'checkout',
-    param: (m) => (/check\s?out/.test(m[0]) ? 'checkout' : 'cart'),
-  },
-  {
-    re: /^(?:auto\s?fill|fill\s+(?:in|out|up)?)\b.*$|^(?:complete|fill)\s+(?:this|the)\s+form\b.*$/u,
-    action: 'fill_form',
-    param: () => 'profile',
-  },
-  {
-    re: /^(?:summari[sz]e|sum\s+up|give\s+(?:me\s+)?(?:a\s+)?(?:short\s+)?summary|tl;?\s?dr|what(?:\s+is|'s|’s|s)\s+(?:this|the)\s+(?:page|article)\s+about)\b.*$/u,
-    action: 'summarize',
-    param: () => 'page',
-  },
-];
+const PAGE_COMMANDS: Array<{ re: RegExp; action: string; param: (m: RegExpExecArray) => string }> =
+  [
+    {
+      re: /^scroll(?:\s+(?:the\s+page\s+)?(up|down))?(?:\s+(?:a\s+(?:bit|little)|more|further|again|please))*$/u,
+      action: 'scroll',
+      param: (m) => m[1] ?? 'down',
+    },
+    {
+      re: /^(?:go\s+)?back(?:\s+(?:to\s+(?:the\s+)?(?:previous|last)\s+page|please))?$|^(?:go\s+to\s+)?(?:the\s+)?previous\s+page$/u,
+      action: 'go_back',
+      param: () => 'back',
+    },
+    { re: /^go\s+forward$/u, action: 'go_forward', param: () => 'forward' },
+    {
+      re: /^(?:add|put)\b(?:\s+(?:it|this|that|the\s+item|this\s+item|this\s+product|one))?\s+(?:to|in|into)\s+(?:the\s+|my\s+)?(?:cart|basket|bag)$/u,
+      action: 'add_to_cart',
+      param: () => 'cart',
+    },
+    {
+      re: /^(?:(?:go|proceed|continue)\s+to\s+|open\s+)(?:the\s+|my\s+)?(?:check\s?out|cart|basket|bag)$|^check\s?out$/u,
+      action: 'checkout',
+      param: (m) => (/check\s?out/.test(m[0]) ? 'checkout' : 'cart'),
+    },
+    {
+      re: /^(?:auto\s?fill|fill\s+(?:in|out|up)?)\b.*$|^(?:complete|fill)\s+(?:this|the)\s+form\b.*$/u,
+      action: 'fill_form',
+      param: () => 'profile',
+    },
+    {
+      re: /^(?:summari[sz]e|sum\s+up|give\s+(?:me\s+)?(?:a\s+)?(?:short\s+)?summary|tl;?\s?dr|what(?:\s+is|'s|’s|s)\s+(?:this|the)\s+(?:page|article)\s+about)\b.*$/u,
+      action: 'summarize',
+      param: () => 'page',
+    },
+  ];
 
 /** "the cheapest one", "open the top rated phone", "show me the most expensive" → pick by value. */
 const PICK_RE =

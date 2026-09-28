@@ -66,7 +66,14 @@ const KIND: Record<FillField, PrivacyKind> = {
   country: 'address',
 };
 
-const NEVER: ReadonlySet<PrivacyKind> = new Set(['password', 'otp', 'card_number', 'cvv', 'upi_id', 'bank_account']);
+const NEVER: ReadonlySet<PrivacyKind> = new Set([
+  'password',
+  'otp',
+  'card_number',
+  'cvv',
+  'upi_id',
+  'bank_account',
+]);
 
 function valueFor(field: FillField, profile: UserProfile): string {
   const [first = '', ...rest] = profile.fullName.split(/\s+/);
@@ -110,7 +117,16 @@ export function planField(node: DOMNode, profile: UserProfile): FieldPlan {
 }
 
 // Password fields are listed so the user sees them reported as "never filled" (planField skips them).
-const FILLABLE_TYPES = new Set([null, 'text', 'email', 'tel', 'search', 'url', 'number', 'password']);
+const FILLABLE_TYPES = new Set([
+  null,
+  'text',
+  'email',
+  'tel',
+  'search',
+  'url',
+  'number',
+  'password',
+]);
 
 /** Visible, editable text fields and selects of the page's forms, top to bottom. */
 export function formFields(nodes: readonly DOMNode[]): DOMNode[] {
@@ -119,7 +135,9 @@ export function formFields(nodes: readonly DOMNode[]): DOMNode[] {
       (n) =>
         n.visible &&
         (n.editable || (n.tag === 'select' && n.interactive)) &&
-        (n.tag === 'textarea' || n.tag === 'select' || (n.tag === 'input' && FILLABLE_TYPES.has(n.inputType))) &&
+        (n.tag === 'textarea' ||
+          n.tag === 'select' ||
+          (n.tag === 'input' && FILLABLE_TYPES.has(n.inputType))) &&
         n.attributes['tm:form-role'] !== 'search' &&
         n.role !== 'searchbox',
     )

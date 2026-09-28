@@ -38,7 +38,16 @@ describe('manifest generator', () => {
 
   it('requests only least-privilege permissions', () => {
     // scripting: on-demand injection into the agent's tab only (Phase 1).
-    const allowed = new Set(['storage', 'tabs', 'sidePanel', 'scripting', 'debugger', 'bookmarks', 'downloads', 'tabGroups']);
+    const allowed = new Set([
+      'storage',
+      'tabs',
+      'sidePanel',
+      'scripting',
+      'debugger',
+      'bookmarks',
+      'downloads',
+      'tabGroups',
+    ]);
     for (const m of [chrome, firefox]) {
       for (const p of m.permissions as string[]) expect(allowed.has(p), p).toBe(true);
     }

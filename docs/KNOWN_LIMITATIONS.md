@@ -1,13 +1,13 @@
 # Known Limitations
 
-**Status:** Current as of Batch A — Phase 3 + 4 (2026-09-28).
+**Status:** Current as of Batch B — Phase 5 + 6 (2026-09-29).
 
 ## Phase 1 — agent core
 
 1. **Synthetic input only.** Content scripts cannot create trusted user gestures. Consequences:
    - **Sound autoplay cannot be unlocked by the agent.** On a fresh Chrome profile, "Open YouTube and play some Kannada songs" opens a real video and then hands over ("Press Play") — verified live (P1). With a profile where autoplay is permitted (P2, `--autoplay-policy=no-user-gesture-required`, comparable to a user whose Chrome already allows YouTube autoplay) the full playback flow completes and is verified. A trusted-input path (e.g. `chrome.debugger` Input events) is a later-phase option with a visible permission trade-off.
    - Sites that ignore untrusted events for critical actions would not respond; none of the tested sites did.
-2. **Supported goals:** navigate, search, open/play a result. Purchases, form filling, extraction and multi-site tasks are refused with `UNSUPPORTED_INTENT` (later phases), never improvised.
+2. **Supported goals:** navigate, search, open/play a result. *(Phase 5/6 add extraction, page commands, cart, forms, summaries and the 12 skills; purchases still stop before payment.)*
 3. **Intent resolution is deterministic (Tier 0).** Unusual phrasings without a recognised command verb fall back to a generic web search of the whole text (confidence 0.5). *(Phase 3: these now go to Laya → the local model when configured; without models the behaviour is unchanged.)*
 4. **Single top frame.** Grounding and execution cover the top document and open shadow roots; cross-origin iframes and closed shadow roots are not observed.
 5. **Observation version drift is tolerated when the target is unchanged** (busy pages mutate constantly). Stale-action policy beyond target identity is part of the Phase 2 firewall.
@@ -24,6 +24,17 @@
 - Confirmation-required (HIGH) actions end the task with a handover; an in-flow "confirm and continue" arrives with Phase 7 handover/resume.
 - DNS rebinding cannot be fully excluded for cookieless GET probes (the browser resolves names).
 - The audit log keeps the last 2,000 events locally; older records roll off behind a verifiable anchor.
+
+## Batch B — Phase 5 (workflows) + Phase 6 (skills)
+
+- **Live sites not exercised in the cloud.** The container cannot reach YouTube/Flipkart/Amazon; all workflows ran on fixture sites in real Chromium. The Phase 5 live milestone runs on the Mac (end-of-batch prompt).
+- **Generic extraction has limits:** prices rendered only in images/canvas, prices split across many elements, or cards without a link are not read. Struck-through old prices are ignored only when marked as `<s>/<del>/<strike>` or `line-through`.
+- **Checkout:** the agent opens the cart and stops at any checkout/pay control; it does not fill shipping forms on its own beyond "fill my delivery address".
+- **Trusted media clicks** show Chrome's "debugging this browser" bar briefly and fail if DevTools is already attached to the tab (then the Press-Play handover is used).
+- **Form filling** never submits and skips fields it cannot map by meaning (e.g. "Company"); names are split into first/last on the first space.
+- **monitor-page** only stores the monitor; checking and email alerts need the Phase 8 backend (Batch C).
+- **deep-research** reads at most 3 sources and uses extractive synthesis without a local model.
+- **Skill confirmations** (e.g. one of several bookmarks to remove) end with a handover; confirm-and-resume is Phase 7.
 
 ## Batch A — Phase 3 (model routing) + Phase 4 (vision)
 

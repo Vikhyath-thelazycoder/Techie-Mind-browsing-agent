@@ -73,7 +73,12 @@ export async function saveProfile(adapter: BrowserAdapter, profile: UserProfile)
 /** The decrypted profile, or null when none is saved (or it cannot be decrypted here). */
 export async function loadProfile(adapter: BrowserAdapter): Promise<UserProfile | null> {
   const sealed = (await adapter.storageGet(PROFILE_STORAGE_KEY)) as Partial<Sealed> | null;
-  if (!sealed || sealed.v !== 1 || typeof sealed.iv !== 'string' || typeof sealed.data !== 'string') {
+  if (
+    !sealed ||
+    sealed.v !== 1 ||
+    typeof sealed.iv !== 'string' ||
+    typeof sealed.data !== 'string'
+  ) {
     return null;
   }
   const key = await profileKey(false);

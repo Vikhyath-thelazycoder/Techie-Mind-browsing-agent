@@ -16,7 +16,10 @@ class FakeData implements BrowserData {
   monitorList: Monitor[] = [];
   downloads: Array<{ name: string; mime: string; content: string; base64?: boolean }> = [];
   bookmarks = {
-    search: async (q: string) => this.bookmarkList.filter((b) => !q || b.url.startsWith(q) || b.title.toLowerCase().includes(q.toLowerCase())),
+    search: async (q: string) =>
+      this.bookmarkList.filter(
+        (b) => !q || b.url.startsWith(q) || b.title.toLowerCase().includes(q.toLowerCase()),
+      ),
     add: async (e: { url: string; title: string }) => {
       const b = { id: `b${this.bookmarkList.length + 1}`, ...e };
       this.bookmarkList.push(b);
@@ -63,9 +66,24 @@ function withData(site: ReturnType<typeof shop>) {
   const data = new FakeData();
   Object.assign(site, {
     browserData: data,
-    captureVisible: async (_t: number, o: { people: boolean; marks?: Array<{ box: unknown; label: string }> }) => {
+    captureVisible: async (
+      _t: number,
+      o: { people: boolean; marks?: Array<{ box: unknown; label: string }> },
+    ) => {
       data.marks = o.marks ?? [];
-      return { image: { base64: 'iVBORw0KGgo=', width: 1008, height: 630, redacted: true as const, regions: 2 }, scale: 0.7875, scrollX: 0, scrollY: 0, ms: 3 };
+      return {
+        image: {
+          base64: 'iVBORw0KGgo=',
+          width: 1008,
+          height: 630,
+          redacted: true as const,
+          regions: 2,
+        },
+        scale: 0.7875,
+        scrollX: 0,
+        scrollY: 0,
+        ms: 3,
+      };
     },
   });
   return data;
@@ -103,7 +121,11 @@ describe('skill matrix', () => {
       const profile = resolveIntent(SAMPLE[id]).profile;
       const recognised =
         profile.entities.find((e) => e.type === 'skill')?.value ??
-        (profile.action === 'summarize' ? 'summarize-page' : profile.action === 'fill_form' ? 'fill-form' : null);
+        (profile.action === 'summarize'
+          ? 'summarize-page'
+          : profile.action === 'fill_form'
+            ? 'fill-form'
+            : null);
       expect(recognised, SAMPLE[id]).toBe(id);
       expect(detectSkill(`/${id}`)?.id, id).toBe(id);
     }
@@ -127,13 +149,30 @@ describe('skills — page', () => {
     const tablePage: PageDef = {
       title: 'Fees',
       nodes: [node({ nodeId: 'h', tag: 'h1', role: 'heading', name: 'Fees', interactive: false })],
-      text: { title: 'Fees', headings: ['Fees'], paragraphs: [], tables: [{ headers: ['Plan', 'Fee'], rows: [['Basic', '₹99'], ['Pro', '₹299']] }], truncated: false },
+      text: {
+        title: 'Fees',
+        headings: ['Fees'],
+        paragraphs: [],
+        tables: [
+          {
+            headers: ['Plan', 'Fee'],
+            rows: [
+              ['Basic', '₹99'],
+              ['Pro', '₹299'],
+            ],
+          },
+        ],
+        truncated: false,
+      },
     };
     const site = shop('/fees');
     site.pages['/fees'] = tablePage;
     withData(site);
     const { result } = await run(site, 'extract the table');
-    expect(result.output).toMatchObject({ kind: 'list', entries: ['Plan | Fee', 'Basic | ₹99', 'Pro | ₹299'] });
+    expect(result.output).toMatchObject({
+      kind: 'list',
+      entries: ['Plan | Fee', 'Basic | ₹99', 'Pro | ₹299'],
+    });
     const empty = shop('/news');
     withData(empty);
     const { result: none } = await run(empty, 'extract the data');
@@ -150,7 +189,9 @@ describe('skills — page', () => {
     expect(data.downloads[0]).toMatchObject({ mime: 'image/png', base64: true });
     if (result.output?.kind !== 'list') throw new Error('no list');
     {
-      expect(result.output.entries[0]).toMatch(/^1\. Search for products \(searchbox\) — type here/);
+      expect(result.output.entries[0]).toMatch(
+        /^1\. Search for products \(searchbox\) — type here/,
+      );
       expect(result.output.entries.at(-1)).toMatch(/2 sensitive region\(s\) were painted over/);
     }
   });
@@ -171,7 +212,10 @@ describe('skills — page', () => {
 describe('skills — multi-source', () => {
   function mart(q: string): PageDef {
     const page = results(q);
-    const items = (page.items ?? []).map((i) => ({ ...i, price: i.price! + (i.title.startsWith('HP') ? -2000 : 3000) }));
+    const items = (page.items ?? []).map((i) => ({
+      ...i,
+      price: i.price! + (i.title.startsWith('HP') ? -2000 : 3000),
+    }));
     return { ...page, title: `${q} - Mart`, items };
   }
 
@@ -179,7 +223,10 @@ describe('skills — multi-source', () => {
     const site = shop('/');
     site.addSite('https://store.fixture.test', { '/': site.pages['/']!, '/search': results });
     site.addSite('https://mart.fixture.test', { '/': site.pages['/']!, '/search': mart });
-    const { result } = await run(site, 'compare hp laptop prices on store.fixture.test and mart.fixture.test');
+    const { result } = await run(
+      site,
+      'compare hp laptop prices on store.fixture.test and mart.fixture.test',
+    );
     expect(result.status).toBe('COMPLETED');
     expect(site.navigations).toEqual(['https://store.fixture.test/', 'https://mart.fixture.test/']);
     expect(result.output?.kind).toBe('items');
@@ -196,8 +243,14 @@ describe('skills — multi-source', () => {
   it('compare-prices: a store without a matching item is reported, not estimated', async () => {
     const site = shop('/');
     site.addSite('https://store.fixture.test', { '/': site.pages['/']!, '/search': results });
-    site.addSite('https://mart.fixture.test', { '/': site.pages['/']!, '/search': (q) => ({ ...results(q), items: [] }) });
-    const { result } = await run(site, 'compare hp laptop prices on store.fixture.test and mart.fixture.test');
+    site.addSite('https://mart.fixture.test', {
+      '/': site.pages['/']!,
+      '/search': (q) => ({ ...results(q), items: [] }),
+    });
+    const { result } = await run(
+      site,
+      'compare hp laptop prices on store.fixture.test and mart.fixture.test',
+    );
     if (result.output?.kind !== 'items') throw new Error('no items');
     {
       expect(result.output.items.map((i) => i.source)).toEqual(['store.fixture.test']);
@@ -211,13 +264,21 @@ describe('skills — multi-source', () => {
     expect(result.status).toBe('COMPLETED');
     if (result.output?.kind !== 'items') throw new Error('no items');
     {
-      expect(result.output.items.map((i) => i.title)).toEqual(['Lenovo IdeaPad Slim 3 laptop', 'HP 255 G9 laptop']);
+      expect(result.output.items.map((i) => i.title)).toEqual([
+        'Lenovo IdeaPad Slim 3 laptop',
+        'HP 255 G9 laptop',
+      ]);
     }
   });
 
   it('deep-research: opens several sources, extracts evidence, cites every bullet', async () => {
     const site = shop('/');
-    site.addSite('https://shop.fixture.test', { ...site.pages, '/p/1': product(1), '/p/2': product(2), '/p/3': product(3) });
+    site.addSite('https://shop.fixture.test', {
+      ...site.pages,
+      '/p/1': product(1),
+      '/p/2': product(2),
+      '/p/3': product(3),
+    });
     const { result } = await run(site, 'research laptops on shop.fixture.test');
     expect(result.status).toBe('COMPLETED');
     expect(result.output).toMatchObject({ kind: 'text', source: 'extractive' });
@@ -236,11 +297,16 @@ describe('skills — browser data', () => {
     const data = withData(site);
     const { result } = await run(site, 'bookmark this page');
     expect(result.status).toBe('COMPLETED');
-    expect(data.bookmarkList).toEqual([{ id: 'b1', url: 'https://shop.fixture.test/p/1', title: 'Product 1 - Shop' }]);
+    expect(data.bookmarkList).toEqual([
+      { id: 'b1', url: 'https://shop.fixture.test/p/1', title: 'Product 1 - Shop' },
+    ]);
     await run(site, 'bookmark this page');
     expect(data.bookmarkList).toHaveLength(1);
     const { result: search } = await run(site, 'show my bookmarks for product');
-    expect(search.output).toMatchObject({ kind: 'list', entries: ['Product 1 - Shop — https://shop.fixture.test/p/1'] });
+    expect(search.output).toMatchObject({
+      kind: 'list',
+      entries: ['Product 1 - Shop — https://shop.fixture.test/p/1'],
+    });
     const { result: removed } = await run(site, 'remove this bookmark');
     expect(removed.status).toBe('COMPLETED');
     expect(data.bookmarkList).toEqual([]);
@@ -264,7 +330,15 @@ describe('skills — browser data', () => {
   it('organize-tabs: groups by site; closes only duplicate copies, never pinned or active', async () => {
     const site = shop();
     const data = withData(site);
-    const t = (id: number, url: string, extra: Partial<TabEntry> = {}): TabEntry => ({ id, url, title: url, pinned: false, active: false, windowId: 1, ...extra });
+    const t = (id: number, url: string, extra: Partial<TabEntry> = {}): TabEntry => ({
+      id,
+      url,
+      title: url,
+      pinned: false,
+      active: false,
+      windowId: 1,
+      ...extra,
+    });
     data.tabList = [
       t(1, 'https://a.example/x'),
       t(2, 'https://a.example/x', { active: true }),
@@ -284,7 +358,13 @@ describe('skills — browser data', () => {
     const site = shop('/search?q=laptops');
     const data = withData(site);
     await run(site, 'save this for later');
-    expect(data.saved).toEqual([{ url: 'https://shop.fixture.test/search', title: 'laptops - Shop', savedAt: expect.any(Number) }]);
+    expect(data.saved).toEqual([
+      {
+        url: 'https://shop.fixture.test/search',
+        title: 'laptops - Shop',
+        savedAt: expect.any(Number),
+      },
+    ]);
     const { result } = await run(site, 'show my reading list');
     expect(result.output).toMatchObject({ kind: 'list', title: '1 page(s) to read later' });
     await run(site, 'remove this from my reading list');

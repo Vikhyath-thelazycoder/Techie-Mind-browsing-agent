@@ -63,7 +63,10 @@ const commandParam = (profile: IntentProfile) =>
   profile.entities.find((e) => e.type === 'command')?.value ?? '';
 
 /** Price bounds from the request's constraints ("under ₹50,000" → maxPrice 50000). */
-export function priceBounds(profile: IntentProfile): { maxPrice: number | null; minPrice: number | null } {
+export function priceBounds(profile: IntentProfile): {
+  maxPrice: number | null;
+  minPrice: number | null;
+} {
   let maxPrice: number | null = null;
   let minPrice: number | null = null;
   for (const c of profile.constraints) {
@@ -102,13 +105,19 @@ export function planGoals(profile: IntentProfile, target: Target, reuse = false)
   const page: Record<string, () => Goal> = {
     pick_item: () => ({
       kind: 'pick-item',
-      by: (['cheapest', 'costliest', 'top-rated'] as const).find((b) => b === commandParam(profile)) ?? 'cheapest',
+      by:
+        (['cheapest', 'costliest', 'top-rated'] as const).find(
+          (b) => b === commandParam(profile),
+        ) ?? 'cheapest',
     }),
     scroll: () => ({ kind: 'scroll', direction: commandParam(profile) === 'up' ? 'up' : 'down' }),
     go_back: () => ({ kind: 'history', direction: 'back' }),
     go_forward: () => ({ kind: 'history', direction: 'forward' }),
     add_to_cart: () => ({ kind: 'add-to-cart' }),
-    checkout: () => ({ kind: 'checkout', target: commandParam(profile) === 'cart' ? 'cart' : 'checkout' }),
+    checkout: () => ({
+      kind: 'checkout',
+      target: commandParam(profile) === 'cart' ? 'cart' : 'checkout',
+    }),
     fill_form: () => ({ kind: 'fill-form' }),
     summarize: () => ({ kind: 'summarize' }),
   };

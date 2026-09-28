@@ -236,7 +236,7 @@ export class ActionFirewall {
       action.args.type === 'TYPE' &&
       'vaultToken' in action.args.input &&
       target &&
-      PROFILE_KINDS.has(ctx.vault?.kindOf?.(action.args.input.vaultToken) ?? "other") &&
+      PROFILE_KINDS.has(ctx.vault?.kindOf?.(action.args.input.vaultToken) ?? 'other') &&
       detectField(target)?.kind === ctx.vault?.kindOf?.(action.args.input.vaultToken)
     ) {
       risk = { ...risk, level: 'MEDIUM', reasons: ['your saved profile value for this field'] };

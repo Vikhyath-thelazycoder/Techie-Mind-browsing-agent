@@ -30,7 +30,14 @@ const CURRENCY: Record<string, ParsedPrice['currency']> = {
 const PRICE_RE =
   /(₹|rs\.?|inr|\$|usd|€|eur|£|gbp)\s?(\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(\s?(?:k|lakh|lac|l|cr|crore)\b)?/i;
 
-const MULTIPLIER: Record<string, number> = { k: 1e3, lakh: 1e5, lac: 1e5, l: 1e5, cr: 1e7, crore: 1e7 };
+const MULTIPLIER: Record<string, number> = {
+  k: 1e3,
+  lakh: 1e5,
+  lac: 1e5,
+  l: 1e5,
+  cr: 1e7,
+  crore: 1e7,
+};
 
 /** First currency amount in a text: "₹49,999", "Rs. 1,29,900", "$12.50", "₹1.2 lakh". */
 export function parsePrice(text: string): ParsedPrice | null {
@@ -87,7 +94,8 @@ function cardOf(link: Element): Element {
     // (A sibling linking to the same place — an image link next to the title link — is the same card.)
     const own = hrefOf(card);
     const similar = Array.from(parent.children).some(
-      (c) => c !== card && c.localName === card.localName && hrefOf(c) !== null && hrefOf(c) !== own,
+      (c) =>
+        c !== card && c.localName === card.localName && hrefOf(c) !== null && hrefOf(c) !== own,
     );
     if (similar) return card;
     if (parent.querySelectorAll('a[href]').length > 6) return card;
@@ -114,14 +122,20 @@ export function extractItems(doc: Document, registry: ElementRegistry): Extracte
       // Same product linked twice (image, then title): the titled link is the better target.
       const item = items[earlier]!;
       if (!item.title && linkTitle.length >= 3) {
-        items[earlier] = { ...item, elementId: registry.idFor(link), title: linkTitle.slice(0, 300) };
+        items[earlier] = {
+          ...item,
+          elementId: registry.idFor(link),
+          title: linkTitle.slice(0, 300),
+        };
       }
       continue;
     }
     const card = cardOf(link);
     const title =
       linkTitle ||
-      (card.querySelector('h1,h2,h3,h4,[role=heading]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      (card.querySelector('h1,h2,h3,h4,[role=heading]')?.textContent ?? '')
+        .replace(/\s+/g, ' ')
+        .trim();
     if (title.length < 3 && !link.querySelector('img')) continue;
     seen.set(key, items.length);
     const price = cardPrice(card);
@@ -154,7 +168,9 @@ export function extractTables(doc: Document): Array<{ headers: string[]; rows: s
     if (rows.length < 2) continue;
     const first = rows[0]!;
     const headerCells = Array.from(first.querySelectorAll('th'));
-    const headers = (headerCells.length ? headerCells : Array.from(first.children)).map(cell).slice(0, 30);
+    const headers = (headerCells.length ? headerCells : Array.from(first.children))
+      .map(cell)
+      .slice(0, 30);
     const body = rows
       .slice(1)
       .map((r) => Array.from(r.querySelectorAll('td,th')).map(cell).slice(0, 30))
@@ -196,15 +212,25 @@ export function extractMainText(doc: Document): {
       paragraphs.push(text.slice(0, 2000));
     }
   }
-  return { title: doc.title.slice(0, 512), headings, paragraphs, tables: extractTables(doc), truncated };
+  return {
+    title: doc.title.slice(0, 512),
+    headings,
+    paragraphs,
+    tables: extractTables(doc),
+    truncated,
+  };
 }
 
 /** Scroll an element into view and report its viewport rectangle (for a trusted click). */
-export function elementRect(
-  el: Element | null,
-): { visible: boolean; rect: { x: number; y: number; width: number; height: number } | null } {
+export function elementRect(el: Element | null): {
+  visible: boolean;
+  rect: { x: number; y: number; width: number; height: number } | null;
+} {
   if (!el || !isVisible(el)) return { visible: false, rect: null };
   el.scrollIntoView({ block: 'center', inline: 'nearest' });
   const r = el.getBoundingClientRect();
-  return { visible: r.width > 0 && r.height > 0, rect: { x: r.left, y: r.top, width: r.width, height: r.height } };
+  return {
+    visible: r.width > 0 && r.height > 0,
+    rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+  };
 }

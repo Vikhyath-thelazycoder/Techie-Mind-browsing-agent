@@ -386,7 +386,8 @@ export class ExtensionHost implements AgentHost {
   #see(tabId: number, url: string) {
     const trail = this.#trail.get(tabId) ?? [];
     if (trail.at(-1) !== url) {
-      if (trail.at(-2) === url) trail.pop(); // went back to it
+      if (trail.at(-2) === url)
+        trail.pop(); // went back to it
       else trail.push(url);
     }
     this.#trail.set(tabId, trail.slice(-20));

@@ -56,7 +56,8 @@ export class WorkflowSite implements AgentHost {
   readonly history: string[] = [];
   readonly forward: string[] = [];
   readonly values = new Map<string, string>();
-  readonly executed: Array<{ action: Action; resolved?: { vaultToken: string; text: string } }> = [];
+  readonly executed: Array<{ action: Action; resolved?: { vaultToken: string; text: string } }> =
+    [];
   readonly trusted: string[] = [];
   readonly navigations: string[] = [];
   mediaClock = 0;
@@ -112,7 +113,14 @@ export class WorkflowSite implements AgentHost {
 
   async currentContext(): Promise<TabContext> {
     const u = new URL(this.url);
-    return { tabId: 1, url: this.url, origin: u.origin, host: u.hostname, title: this.page().title, source: 'active-tab' };
+    return {
+      tabId: 1,
+      url: this.url,
+      origin: u.origin,
+      host: u.hostname,
+      title: this.page().title,
+      source: 'active-tab',
+    };
   }
   async prepareTab() {
     return 1;
@@ -149,11 +157,20 @@ export class WorkflowSite implements AgentHost {
     return 'IN';
   }
   async probeWebsites(urls: readonly string[]): Promise<WebsiteProbe[]> {
-    return urls.map((url) => ({ url, status: null, finalUrl: null, body: '', error: 'ENOTFOUND', ms: 1 }));
+    return urls.map((url) => ({
+      url,
+      status: null,
+      finalUrl: null,
+      body: '',
+      error: 'ENOTFOUND',
+      ms: 1,
+    }));
   }
 
   #nodes(): DOMNode[] {
-    return this.page().nodes.map((n) => (n.editable || n.tag === 'select' ? { ...n, value: this.values.get(n.nodeId) ?? '' } : n));
+    return this.page().nodes.map((n) =>
+      n.editable || n.tag === 'select' ? { ...n, value: this.values.get(n.nodeId) ?? '' } : n,
+    );
   }
 
   async observe(tabId: number, taskId: string, observationId: string): Promise<Observation> {
@@ -167,33 +184,65 @@ export class WorkflowSite implements AgentHost {
       title: this.page().title,
       version: this.version,
       createdAt: 0,
-      viewport: { width: 1280, height: 800, scrollX: 0, scrollY: this.scrollY, devicePixelRatio: 1 },
+      viewport: {
+        width: 1280,
+        height: 800,
+        scrollX: 0,
+        scrollY: this.scrollY,
+        devicePixelRatio: 1,
+      },
       domNodes: this.#nodes(),
       a11yNodes: [],
       visualRegions: [],
     };
   }
 
-  #reply(action: Action, status: ExecuteResponse['status'], code: ExecuteResponse['code'], valueAfter: string | null = null): ExecuteResponse {
-    return { type: 'EXECUTE_RESULT', actionId: action.actionId, status, code, message: code ?? 'ok', valueAfter, versionAfter: this.version, deferred: false };
+  #reply(
+    action: Action,
+    status: ExecuteResponse['status'],
+    code: ExecuteResponse['code'],
+    valueAfter: string | null = null,
+  ): ExecuteResponse {
+    return {
+      type: 'EXECUTE_RESULT',
+      actionId: action.actionId,
+      status,
+      code,
+      message: code ?? 'ok',
+      valueAfter,
+      versionAfter: this.version,
+      deferred: false,
+    };
   }
 
-  async execute(_t: number, action: Action, resolved?: { vaultToken: string; text: string }): Promise<ExecuteResponse> {
+  async execute(
+    _t: number,
+    action: Action,
+    resolved?: { vaultToken: string; text: string },
+  ): Promise<ExecuteResponse> {
     this.executed.push({ action, ...(resolved ? { resolved } : {}) });
-    if (action.binding.documentId !== `doc-${this.doc}`) return this.#reply(action, 'rejected', 'DOCUMENT_MISMATCH');
+    if (action.binding.documentId !== `doc-${this.doc}`)
+      return this.#reply(action, 'rejected', 'DOCUMENT_MISMATCH');
     const t = action.binding.target;
-    const n = t?.kind === 'element' ? this.#nodes().find((x) => x.nodeId === t.elementId) : undefined;
+    const n =
+      t?.kind === 'element' ? this.#nodes().find((x) => x.nodeId === t.elementId) : undefined;
     if (t && !n) return this.#reply(action, 'rejected', 'TARGET_MISSING');
     if (n && t?.kind === 'element' && t.fingerprint !== elementFingerprint(n.tag, n.role, n.name)) {
       return this.#reply(action, 'rejected', 'TARGET_CHANGED');
     }
     const a = action.args;
     if (a.type === 'TYPE' && n) {
-      const text = 'text' in a.input ? a.input.text : resolved?.vaultToken === a.input.vaultToken ? resolved.text : null;
+      const text =
+        'text' in a.input
+          ? a.input.text
+          : resolved?.vaultToken === a.input.vaultToken
+            ? resolved.text
+            : null;
       if (text === null) return this.#reply(action, 'rejected', 'UNSUPPORTED_ACTION');
       this.values.set(n.nodeId, text);
       this.version += 1;
-      if (a.submit && this.page().searchField === n.nodeId) this.go(`/search?q=${encodeURIComponent(text)}`);
+      if (a.submit && this.page().searchField === n.nodeId)
+        this.go(`/search?q=${encodeURIComponent(text)}`);
       return this.#reply(action, 'executed', null, text);
     }
     if (a.type === 'SELECT' && n) {
@@ -251,11 +300,18 @@ export class WorkflowSite implements AgentHost {
     return this.probe();
   }
   async extractItems() {
-    return { type: 'ITEMS_RESULT' as const, documentId: `doc-${this.doc}`, items: this.page().items ?? [], ms: 1 };
+    return {
+      type: 'ITEMS_RESULT' as const,
+      documentId: `doc-${this.doc}`,
+      items: this.page().items ?? [],
+      ms: 1,
+    };
   }
   async extractText() {
     const text = this.page().text;
-    return text ? { type: 'TEXT_RESULT' as const, documentId: `doc-${this.doc}`, ms: 1, ...text } : null;
+    return text
+      ? { type: 'TEXT_RESULT' as const, documentId: `doc-${this.doc}`, ms: 1, ...text }
+      : null;
   }
   async loadProfile() {
     return this.profile;
