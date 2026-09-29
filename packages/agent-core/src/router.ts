@@ -78,6 +78,7 @@ const RESULT_ACTIONS = new Set([
   'add_to_cart',
   'checkout',
   'fill_form',
+  'submit_form',
   'summarize',
   'upload_file',
 ]);

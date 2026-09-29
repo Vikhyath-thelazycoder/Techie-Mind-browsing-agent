@@ -677,7 +677,7 @@ function ProfileSection({ adapter }: { adapter: BrowserAdapter }) {
       <Card
         icon="lock"
         title="Encrypted on this device"
-        subtitle="AES-GCM with a key that never leaves this browser. Models only ever see tokens like PHONE_001; the agent never submits a form for you."
+        subtitle="AES-GCM with a key that never leaves this browser. Models only ever see tokens like PHONE_001; the agent submits a form only when you say "submit the form" and confirm it."
       >
         {/* A real <form> with name/autocomplete lets Chrome autofill and paste work normally. */}
         <form autocomplete="on" onSubmit={(e) => e.preventDefault()}>

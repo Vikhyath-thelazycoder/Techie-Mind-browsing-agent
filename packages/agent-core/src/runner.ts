@@ -45,6 +45,7 @@ import {
   ActionFirewall,
   approvalKey,
   scanInjection,
+  type FirewallContext,
   type FirewallDecision,
 } from '@techie-mind/security';
 import type { Logger } from '@techie-mind/telemetry';
@@ -613,7 +614,11 @@ class TaskRun {
   }
 
   /** Run the action firewall against the tab's live state. */
-  async #authorize(action: Action, obs: Observation | null): Promise<FirewallDecision> {
+  async #authorize(
+    action: Action,
+    obs: Observation | null,
+    confirmAt: FirewallContext['confirmAt'] = this.deps.settings.agent.confirmAtRisk,
+  ): Promise<FirewallDecision> {
     return this.#timed('firewall', async () => {
       const live = await this.deps.host.probe(this.#tab, null).catch(() => null);
       const decision = this.#firewall.evaluate(action, {
@@ -628,7 +633,7 @@ class TaskRun {
             ? `${this.task.text}\n${this.#requestText}`
             : this.task.text,
         allowedHosts: [...this.#allowedHosts],
-        confirmAt: this.deps.settings.agent.confirmAtRisk,
+        confirmAt,
         now: this.#now(),
         vault: this.#vault,
         approvals: this.#approvals,
@@ -754,7 +759,7 @@ class TaskRun {
     reason: string,
     expectedOutcome: ExpectedOutcome,
     confidence: number,
-    options: { trusted?: boolean } = {},
+    options: { trusted?: boolean; confirmAt?: FirewallContext['confirmAt'] } = {},
   ): Promise<{ action: Action; result: ExecuteResponse }> {
     this.#checkBudget();
     const action = bindAction({
@@ -776,7 +781,7 @@ class TaskRun {
       proposedBy: this.#proposer,
     });
     this.#actions += 1;
-    const decision = await this.#authorize(action, obs);
+    const decision = await this.#authorize(action, obs, options.confirmAt);
     if (!decision.allowed) {
       const recoverable = STALE_CHECKS[decision.check];
       if (!recoverable)
@@ -1733,6 +1738,8 @@ class TaskRun {
         return this.#checkout(goal);
       case 'fill-form':
         return this.#fillForm();
+      case 'submit-form':
+        return this.#submitForm();
       case 'summarize':
         return this.#summarize();
       case 'upload':
@@ -2108,6 +2115,58 @@ class TaskRun {
   }
 
   /** "Fill this form with my profile": map fields by meaning, type through vault tokens, verify. */
+  /**
+   * "submit the form": only on the user's word. The firewall always asks "Confirm this action"
+   * first (confirmAt MEDIUM for this click), and still refuses payment, sign-in and OTP controls.
+   */
+  async #submitForm() {
+    const obs = await this.#observe();
+    const label = (n: DOMNode) => (n.name ?? n.text ?? '').trim();
+    const visible = obs.domNodes.filter((n) => n.visible && n.interactive);
+    const button =
+      visible.find((n) => n.attributes['type'] === 'submit' || n.inputType === 'submit') ??
+      visible.find((n) =>
+        /^(?:submit|send|save|continue|next|register|sign up|apply|place request|confirm)\b/i.test(
+          label(n),
+        ),
+      );
+    if (!button) {
+      throw new HandoverError(
+        'No submit button is visible on this page. Scroll to it, or press it yourself.',
+        'ambiguous',
+      );
+    }
+    const probeBefore = await this.deps.host.probe(this.#tab, null);
+    this.#grounded('submit control', button, 6, [`button "${label(button).slice(0, 60)}"`]);
+    const { result } = await this.#execute(
+      obs,
+      button,
+      { type: 'CLICK' },
+      'Submit the form (you asked for it)',
+      { kind: 'url-changed', description: 'the form is sent' },
+      0.8,
+      { confirmAt: 'MEDIUM' },
+    );
+    if (result.status !== 'executed') {
+      return {
+        actionType: 'CLICK' as const,
+        target: describeNode(button),
+        verified: false,
+        evidence: result.message,
+      };
+    }
+    const settled = await this.#settle(probeBefore, ACTION_SETTLE_MS);
+    const moved = Boolean(settled && probeBefore && settled.url !== probeBefore.url);
+    return {
+      actionType: 'CLICK' as const,
+      target: describeNode(button),
+      verified: true,
+      evidence: moved
+        ? `submitted — the page moved to ${safePath(settled!.url)}`
+        : 'submit pressed — check the page for its confirmation',
+    };
+  }
+
   async #fillForm() {
     const load = this.deps.host.loadProfile?.bind(this.deps.host);
     const profile = load ? await load().catch(() => null) : null;

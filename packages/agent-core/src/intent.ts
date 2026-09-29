@@ -722,6 +722,12 @@ const PAGE_COMMANDS: Array<{ re: RegExp; action: string; param: (m: RegExpExecAr
       param: (m) => (/check\s?out/.test(m[0]) ? 'checkout' : 'cart'),
     },
     {
+      // Only on the user's explicit word, and the firewall always asks "Confirm this action" first.
+      re: /^(?:(?:now\s+)?(?:submit|send)\s+(?:it|this|the\s+form|this\s+form|my\s+form|the\s+details)|(?:click|press|tap|hit)\s+(?:on\s+)?(?:the\s+)?(?:submit|send)(?:\s+button)?|submit)(?:\s+(?:now|please))?$/u,
+      action: 'submit_form',
+      param: () => 'form',
+    },
+    {
       re: /^(?:auto\s?fill|fill\s+(?:in|out|up)?)\b.*$|^(?:complete|fill)\s+(?:this|the)\s+form\b.*$/u,
       action: 'fill_form',
       param: () => 'profile',
@@ -912,7 +918,9 @@ function resolveCanonical(request: string): ResolvedIntent {
       const kind =
         command.action === 'add_to_cart' || command.action === 'checkout'
           ? 'shopping'
-          : command.action === 'fill_form' || command.action === 'upload_file'
+          : command.action === 'fill_form' ||
+              command.action === 'submit_form' ||
+              command.action === 'upload_file'
             ? 'form_fill'
             : command.action === 'summarize'
               ? 'summarize'

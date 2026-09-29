@@ -148,6 +148,7 @@ export const GoalKind = z.enum([
   'add-to-cart',
   'checkout',
   'fill-form',
+  'submit-form',
   'summarize',
   'upload',
   'skill',

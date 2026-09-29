@@ -28,6 +28,7 @@ export type Goal =
   | { kind: 'add-to-cart' }
   | { kind: 'checkout'; target: 'cart' | 'checkout' }
   | { kind: 'fill-form' }
+  | { kind: 'submit-form' }
   | { kind: 'summarize' }
   | { kind: 'upload' }
   | { kind: 'skill'; id: SkillId; arg: string }
@@ -57,6 +58,7 @@ const SUPPORTED_ACTIONS = new Set([
   'add_to_cart',
   'checkout',
   'fill_form',
+  'submit_form',
   'upload_file',
   'summarize',
 ]);
@@ -121,6 +123,7 @@ export function planGoals(profile: IntentProfile, target: Target, reuse = false)
       target: commandParam(profile) === 'cart' ? 'cart' : 'checkout',
     }),
     fill_form: () => ({ kind: 'fill-form' }),
+    submit_form: () => ({ kind: 'submit-form' }),
     summarize: () => ({ kind: 'summarize' }),
     upload_file: () => ({ kind: 'upload' }),
   };
@@ -206,6 +209,8 @@ export function describeGoal(goal: Goal): string {
         : 'Go to checkout (the agent stops before payment)';
     case 'fill-form':
       return 'Fill this form from your saved profile (no submit)';
+    case 'submit-form':
+      return 'Submit this form (asks you to confirm first; never payment, sign-in or OTP)';
     case 'summarize':
       return 'Summarize this page';
     case 'upload':
