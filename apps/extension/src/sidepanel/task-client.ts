@@ -6,6 +6,8 @@ import {
   needsModel,
   planGoals,
   resolveIntent,
+  SKILL_ARG_ENTITY,
+  SKILL_ENTITY,
   type TabContext,
 } from '@techie-mind/agent-core';
 import type { BrowserAdapter } from '@techie-mind/browser';
@@ -61,6 +63,23 @@ export function previewPlan(
       ],
       problem: null,
       skill: own.skill.name,
+    };
+  }
+  // Built-in skills act on the open page and skip the website router, exactly as the runner does.
+  if (profile.action === 'skill') {
+    const id = profile.entities.find((e) => e.type === SKILL_ENTITY)?.value ?? '';
+    const arg = profile.entities.find((e) => e.type === SKILL_ARG_ENTITY)?.value ?? '';
+    const skill = describeGoal({ kind: 'skill', id, arg } as Parameters<typeof describeGoal>[0]);
+    return {
+      text,
+      intent: profile,
+      destination: null,
+      steps: [
+        ...(context ? [`Use the current tab (${context.host})`] : []),
+        skill,
+        'Verify the result',
+      ],
+      problem: null,
     };
   }
   // Code is unsure ("now open the samsung one"): the local models decide when it runs. The preview

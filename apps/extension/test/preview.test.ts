@@ -60,6 +60,26 @@ describe('plan preview', () => {
     expect(previewPlan('refresh the page', FLIPKART).problem).toMatch(/can't .* yet/);
   });
 
+  // Mac check 2026-09-29: on a product page the preview said "The request names no website or
+  // query" and Run was disabled, so no built-in skill could start in "Ask before acting".
+  it('previews built-in skills on the open page instead of blocking them', () => {
+    for (const text of [
+      'monitor this product until the price drops below ₹70000',
+      '“monitor this product until the price drops below ₹70000”',
+      'bookmark this page',
+    ]) {
+      const p = previewPlan(text, FLIPKART);
+      expect(p.problem, text).toBeNull();
+      expect(p.steps.join(' | '), text).toMatch(/www\.flipkart\.com/);
+      expect(p.steps.join(' | '), text).toMatch(/Skill: /);
+    }
+    expect(
+      previewPlan('monitor this product until the price drops below ₹70000', FLIPKART).steps.join(
+        ' | ',
+      ),
+    ).toMatch(/monitor-page/);
+  });
+
   it('previews Phase 5 page commands as real steps on the open page', () => {
     const p = previewPlan('scroll down', FLIPKART);
     expect(p.problem).toBeNull();
