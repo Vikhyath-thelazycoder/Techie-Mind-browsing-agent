@@ -214,7 +214,8 @@ const KANNADA_OBJECT = /([\u0c80-\u0cff]+?)ನ್ನು(?=\s)/gu;
  */
 export function canonicalize(request: string): string {
   let text = asciiDigits(request.normalize('NFC').replace(ZERO_WIDTH, ''));
-  const hasIndic = /\p{Script=Devanagari}|\p{Script=Tamil}|\p{Script=Telugu}|\p{Script=Kannada}/u.test(text);
+  const hasIndic =
+    /\p{Script=Devanagari}|\p{Script=Tamil}|\p{Script=Telugu}|\p{Script=Kannada}/u.test(text);
   const lower = text.toLowerCase();
   const romanized =
     /\b(?:sabse|kadime|kammi|pannu|cheyyi|cheyandi|thedu|vetuku|hinde|hindakke|wapas|vapas|peeche|piche|kelage|kelake|mele|neeche|niche|upar|oopar|serisi|daalo|dalo|olage|kinta|ginta|se kam|ke neeche|ke niche|ke andar|saaransh|saransh|saaramsha)\b/.test(
