@@ -37,6 +37,16 @@ async function run(
 const types = (events: AuditEvent[]) => events.map((e) => e.type);
 
 describe('runTask — generic pipeline', () => {
+  it('a page that first loads empty (amazon.in HTTP 202 challenge) is waited for, then searched', async () => {
+    // Live on the Mac: "search iPhone 15 on Amazon" gave up in 2.2 s with "No search field could
+    // be found" — the first, empty document was quiet, so waiting "until quiet" read it again.
+    const { result, site } = await run('open shop.fixture.test and search for iphone 15', {
+      emptyFirstLoad: true,
+    });
+    expect(result.status, JSON.stringify(result.error)).toBe('COMPLETED');
+    expect(site.query).toBe('iphone 15');
+  });
+
   it('navigates, grounds the search field, types, submits and verifies results', async () => {
     const { result, site, events } = await run(
       'open shop.fixture.test and search for trail running shoes',

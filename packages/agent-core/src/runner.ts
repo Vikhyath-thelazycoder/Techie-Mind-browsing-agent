@@ -136,6 +136,15 @@ const ACTION_SETTLE_MS = 8_000;
 /** How long a clicked result may leave its tab unchanged before we look for a tab it opened. */
 const NEW_TAB_CHECK_MS = 2_000;
 
+function largestTable<T extends { rows: unknown[] }>(
+  tables: readonly T[] | undefined,
+): T | undefined {
+  return tables?.reduce<T | undefined>(
+    (a, t) => (!a || t.rows.length > a.rows.length ? t : a),
+    undefined,
+  );
+}
+
 /** The tab still shows the same document at the same address (nothing happened there). */
 function samePage(a: ProbeResponse, b: ProbeResponse): boolean {
   return a.url === b.url && a.documentId === b.documentId;
@@ -1779,9 +1788,24 @@ class TaskRun {
   /** extract-data: items (or table rows) from the open page; CSV/JSON export on request. */
   async #skillExtract(arg: string) {
     const page = await this.#page();
-    const items = await this.#readItems();
+    // "export the table …": a page's data table beats its links (live Wikipedia exported link
+    // titles). Items are used when no table was asked for, or the page has none.
+    const wantsTable = /\btables?\b/i.test(this.task.text);
+    // "The table" is the page's main data table — the one with the most rows (a small summary box
+    // comes first on many pages).
+    const table = wantsTable
+      ? largestTable((await this.deps.host.extractText?.(this.#tab).catch(() => null))?.tables)
+      : undefined;
+    const items = table && table.rows.length > 0 ? [] : await this.#readItems();
     let rows: string[][] = [];
-    if (items.length > 0) {
+    if (table && table.rows.length > 0) {
+      rows = [table.headers, ...table.rows];
+      this.#output = {
+        kind: 'list',
+        title: `Table with ${table.rows.length} row(s) from ${page.host}`,
+        entries: rows.slice(0, 100).map((r) => r.join(' | ')),
+      };
+    } else if (items.length > 0) {
       await this.#itemsOutput(items, items.length, `${items.length} item(s) from ${page.host}`);
       rows = [
         ['title', 'price', 'currency', 'rating'],
@@ -2664,7 +2688,10 @@ class TaskRun {
             'no search field grounded yet',
             `goal-search`,
           );
-          await this.#settle(null, ACTION_SETTLE_MS);
+          // Wait for the page to CHANGE from what was just seen, not merely to be quiet: some sites
+          // first serve an empty, quiet challenge document (seen live: HTTP 202) and replace it.
+          const seen = await this.deps.host.probe(this.#tab, null).catch(() => null);
+          await this.#settle(seen, ACTION_SETTLE_MS);
           continue;
         }
         if (!ladder.used('reveal')) {

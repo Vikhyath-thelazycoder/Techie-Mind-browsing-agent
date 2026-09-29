@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   ModelRequest,
+  WebUrl,
   type DOMNode,
   type Observation,
   type PrivacyKind,
@@ -353,6 +354,18 @@ describe('sanitizeObservation — the only page form that may leave the browser'
     expect(safeUrl('https://x.example.com/users/9876543210/orders?token=abc123456')).toBe(
       'https://x.example.com/users/[REDACTED_PHONE]/orders',
     );
+  });
+
+  it('always returns a valid URL, even when a whole path looks like a secret (live Flipkart bug)', () => {
+    // Seen on the Mac: the long product slug was redacted together with its leading "/", giving
+    // "https://www.flipkart.com[REDACTED_SECRET]" — not a URL — and history saving crashed the task.
+    const product =
+      'https://www.flipkart.com/lenovo-100e-chromebook-gen-4-mediatek-kompanio-520-4-gb-32-gb-emmc-storage-chrome-os/p/itm041aea27f1885?pid=COMHA9FK8YXVUUWA';
+    const safe = safeUrl(product);
+    expect(WebUrl.safeParse(safe).success, safe).toBe(true);
+    expect(new URL(safe).origin).toBe('https://www.flipkart.com');
+    expect(safe.startsWith('https://www.flipkart.com/')).toBe(true);
+    expect(safe).not.toContain('?');
   });
 });
 

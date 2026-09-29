@@ -49,6 +49,11 @@ export interface SiteBehaviour {
   newTabResults?: boolean;
   /** Results are image tiles: links with no accessible name or text (visual-only). */
   imageResults?: boolean;
+  /**
+   * After a navigation the page first loads EMPTY and quiet (like amazon.in's HTTP 202 script
+   * challenge) and only becomes the real page — a new document — when someone waits for it to change.
+   */
+  emptyFirstLoad?: boolean;
 }
 
 type Page = 'blank' | 'home' | 'results' | 'item';
@@ -108,7 +113,11 @@ export class VirtualSite implements AgentHost {
     this.challengeLeft = this.behaviour.challengeProbes ?? 0;
     this.origin = new URL(url).origin;
     this.#load('home', url);
+    this.emptyLoad = !!this.behaviour.emptyFirstLoad;
   }
+
+  /** True while the page shows its empty first load. */
+  emptyLoad = false;
 
   async openedTabs(_openerTabId: number): Promise<number[]> {
     return this.openedTabs_.map((t) => t.id);
@@ -152,7 +161,7 @@ export class VirtualSite implements AgentHost {
         attributes: { href: '/', [DERIVED_ATTR.landmark]: 'navigation' },
       }),
     );
-    if (this.page === 'blank') return [];
+    if (this.page === 'blank' || this.emptyLoad) return [];
     if (this.behaviour.mediaHome) {
       nodes.push(base({ nodeId: 'hero-video', tag: 'video', interactive: false }));
     }
@@ -411,7 +420,12 @@ export class VirtualSite implements AgentHost {
     };
   }
 
-  async settle() {
+  async settle(_tabId?: number, options?: { since: ProbeResponse | null; timeoutMs: number }) {
+    // The empty first load turns into the real page only for a wait that looks for a change.
+    if (this.emptyLoad && options?.since) {
+      this.emptyLoad = false;
+      this.documentSeq += 1;
+    }
     return this.probe();
   }
 

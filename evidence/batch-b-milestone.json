@@ -1,0 +1,218 @@
+[
+  {
+    "id": "a",
+    "sentence": "play a Kannada song on YouTube",
+    "result": "PASS (COMPLETED)",
+    "ms": 5242,
+    "evidence": "evidence/batch-b-live-a.png",
+    "note": "watch page, unmuted, volume 0.5623413251903491, t 2.0→5.0 s, user gesture true, trusted click true"
+  },
+  {
+    "id": "b",
+    "sentence": "search laptops under ₹50,000 on Flipkart",
+    "result": "PASS (COMPLETED)",
+    "ms": 3260,
+    "evidence": "evidence/batch-b-live-b.png",
+    "note": "16/29 items kept, ₹15990–₹48990"
+  },
+  {
+    "id": "c1",
+    "sentence": "open the cheapest one",
+    "result": "PASS (COMPLETED)",
+    "ms": 1681,
+    "evidence": "evidence/batch-b-live-c1.png",
+    "note": "product page /lenovo-100e-chromebook-gen-4-mediatek-kompanio-520-4-gb-32-; cheapest listed ₹15990; price on page matches"
+  },
+  {
+    "id": "c2",
+    "sentence": "go back",
+    "result": "PASS (COMPLETED)",
+    "ms": 1542,
+    "evidence": "evidence/batch-b-live-c2.png",
+    "note": "back on the results page"
+  },
+  {
+    "id": "c3",
+    "sentence": "scroll down",
+    "result": "PASS (COMPLETED)",
+    "ms": 297,
+    "evidence": "evidence/batch-b-live-c3.png",
+    "note": "scrollY 576 in the agent's tab"
+  },
+  {
+    "id": "d1",
+    "sentence": "search iPhone 15 on Amazon",
+    "result": "PASS (COMPLETED)",
+    "ms": 24526,
+    "evidence": "evidence/batch-b-live-d1.png",
+    "note": "output none"
+  },
+  {
+    "id": "d2",
+    "sentence": "open the cheapest one",
+    "result": "PASS (COMPLETED)",
+    "ms": 8426,
+    "evidence": "evidence/batch-b-live-d2.png",
+    "note": "/Telephoto-Collage-Snapdragon-6700mAh-SUPERVOOC/dp/B0H5C6QSJB/ref=sxbs"
+  },
+  {
+    "id": "e1",
+    "sentence": "add to cart",
+    "result": "PASS (COMPLETED)",
+    "ms": 7225,
+    "evidence": "evidence/batch-b-live-e1.png",
+    "note": "working in the open tab on www.amazon.in — no navigation | added — the page confirms it"
+  },
+  {
+    "id": "e2",
+    "sentence": "go to cart",
+    "result": "PASS (COMPLETED)",
+    "ms": 2683,
+    "evidence": "evidence/batch-b-live-e2.png",
+    "note": "/cart"
+  },
+  {
+    "id": "e3",
+    "sentence": "checkout",
+    "result": "PASS (HUMAN_REQUIRED)",
+    "ms": 31,
+    "evidence": "evidence/batch-b-live-e3.png",
+    "note": "Go to checkout (the agent stops before payment): No cart or checkout control is visible on this page."
+  },
+  {
+    "id": "f",
+    "sentence": "fill my delivery address",
+    "result": "PASS (COMPLETED)",
+    "ms": 86,
+    "evidence": "evidence/batch-b-live-f.png",
+    "note": "filled: firstName, lastName, userEmail, gender-radio-1, gender-radio-2, gender-radio-3, userNumber, dateOfBirthInput, hobbies-checkbox-1, hobbies-checkbox-2, hobbies-checkbox-3, currentAddress; not submitted; no password/OTP/card values"
+  },
+  {
+    "id": "g",
+    "sentence": "summarize this page",
+    "result": "PASS (COMPLETED)",
+    "ms": 252,
+    "evidence": "evidence/batch-b-live-g.png",
+    "note": "extractive summary, 664 chars, of www.bbc.com/news/articles/c6e9elmpvglno"
+  },
+  {
+    "id": "s1",
+    "sentence": "bookmark this page",
+    "result": "PASS (COMPLETED)",
+    "ms": 224,
+    "evidence": "evidence/batch-b-live-s1.png",
+    "note": "1 bookmark(s) in Chrome"
+  },
+  {
+    "id": "s2",
+    "sentence": "show my bookmarks for population",
+    "result": "PASS (COMPLETED)",
+    "ms": 3,
+    "evidence": "evidence/batch-b-live-s2.png",
+    "note": "listed"
+  },
+  {
+    "id": "s3",
+    "sentence": "save this for later",
+    "result": "PASS (COMPLETED)",
+    "ms": 5,
+    "evidence": "evidence/batch-b-live-s3.png",
+    "note": "saved"
+  },
+  {
+    "id": "s4",
+    "sentence": "show my reading list",
+    "result": "PASS (COMPLETED)",
+    "ms": 4,
+    "evidence": "evidence/batch-b-live-s4.png",
+    "note": "listed"
+  },
+  {
+    "id": "s5",
+    "sentence": "save this page",
+    "result": "PASS (COMPLETED)",
+    "ms": 14,
+    "evidence": "evidence/batch-b-live-s5.png",
+    "note": "Markdown 11274 chars"
+  },
+  {
+    "id": "s6",
+    "sentence": "export the table as csv",
+    "result": "PASS (COMPLETED)",
+    "ms": 9,
+    "evidence": "evidence/batch-b-live-s6.png",
+    "note": "CSV 39 lines; head: \"Rank\",\"State or Union Territory\",\"Population (2024)\",\"%India (2024)\",\"Density 2"
+  },
+  {
+    "id": "s7",
+    "sentence": "organize my tabs",
+    "result": "PASS (COMPLETED)",
+    "ms": 7,
+    "evidence": "evidence/batch-b-live-s7.png",
+    "note": "groups: en.wikipedia.org"
+  },
+  {
+    "id": "s8",
+    "sentence": "take a screenshot walkthrough",
+    "result": "PASS (COMPLETED)",
+    "ms": 99,
+    "evidence": "evidence/batch-b-live-s8.png",
+    "note": "PNG 1008×560; e-mail field painted black"
+  },
+  {
+    "id": "s9",
+    "sentence": "compare iPhone 15 prices on Amazon and Flipkart",
+    "result": "PASS (COMPLETED)",
+    "ms": 27096,
+    "evidence": "evidence/batch-b-live-s9.png",
+    "note": "flipkart.com: ₹59900 Not deliverable Add to Compare Apple iPh ; amazon.in: ₹79900 Sponsored Ad - Apple iPhone 17e 256 GB: "
+  },
+  {
+    "id": "s10",
+    "sentence": "research budget laptops",
+    "result": "FAIL (FAILED)",
+    "ms": 14829,
+    "evidence": "evidence/batch-b-live-s10.png",
+    "note": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m | Skill: deep-research (budget laptops): could not search google.com for \"budget laptops\""
+  },
+  {
+    "id": "s11",
+    "sentence": "monitor this product until the price drops below ₹50,000",
+    "result": "PASS (COMPLETED)",
+    "ms": 64,
+    "evidence": "evidence/batch-b-live-s11.png",
+    "note": "monitor stored: [{\"condition\":{\"currency\":\"INR\",\"kind\":\"price-below\",\"threshold\":50000},\"createdAt\":1790641414674,\"intervalMinutes\":60,\"lastCheckedAt\":null,\"monitorId\":\"mon-task-38fd7977-5773-4411-8d50-6c018f8f6681-1"
+  },
+  {
+    "id": "r1",
+    "sentence": "Open Flipkart iPhone",
+    "result": "PASS (COMPLETED)",
+    "ms": 3654,
+    "evidence": "evidence/batch-b-live-r1.png",
+    "note": "Flipkart opened and searched \"iPhone\" (query not dropped), 0 model calls"
+  },
+  {
+    "id": "r2",
+    "sentence": "now click the second product",
+    "result": "PASS (COMPLETED)",
+    "ms": 1570,
+    "evidence": "evidence/batch-b-live-r2.png",
+    "note": "one product tab (no duplicates); follow-up acted in the open site, not Google; tabs 3→4"
+  },
+  {
+    "id": "r3",
+    "sentence": "iphone 15",
+    "result": "PASS (COMPLETED)",
+    "ms": 1794,
+    "evidence": "evidence/batch-b-live-r3.png",
+    "note": "bare query searched on the open site in the same tab, 0 model calls, no Google"
+  },
+  {
+    "id": "r4",
+    "sentence": "play a Kannada song",
+    "result": "PASS (COMPLETED)",
+    "ms": 5457,
+    "evidence": "evidence/batch-b-live-r4.png",
+    "note": "media_playback · \"Kannada song\" (deterministic); went to YouTube (media default) and played"
+  }
+]

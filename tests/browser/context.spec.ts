@@ -196,6 +196,15 @@ test.describe('current tab and task continuity', () => {
     expect(context.pages().length).toBe(tabsBefore + 1);
     expect(second.result.tabId).not.toBe(first.result.tabId); // the agent moved to the product tab
 
+    // "go back" in that new tab returns to the results it came from (live Flipkart bug).
+    const back = await runAgentTask(context, extensionId, 'go back');
+    expect(back.result.status, explain(back)).toBe('COMPLETED');
+    expect(back.result.tabId).toBe(second.result.tabId);
+    const backTab = context
+      .pages()
+      .filter((p) => p.url().startsWith('https://newtab.fixture.test/search'));
+    expect(backTab).toHaveLength(2); // the original results tab + the product tab, now on the results
+
     // A bare query (no "search" verb) continues on the open site — never Google.
     const third = await runAgentTask(context, extensionId, 'iphone 15');
     expect(third.result.status, explain(third)).toBe('COMPLETED');

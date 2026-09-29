@@ -104,6 +104,29 @@ function cardOf(link: Element): Element {
   return card;
 }
 
+function sameListing(link: HTMLAnchorElement, doc: Document): boolean {
+  const here = doc.location;
+  return (
+    !!here &&
+    link.origin === here.origin &&
+    link.pathname === here.pathname &&
+    link.search !== '' &&
+    link.search !== here.search
+  );
+}
+
+/** "Up to ₹31,000", "₹10,000 - ₹20,000", "Over ₹55,000": only prices and range words. */
+function isPriceLabel(text: string): boolean {
+  if (!parsePrice(text)) return false;
+  const rest = text
+    .replace(/(?:₹|rs\.?|inr|\$|€|£)\s*[\d,.]+\s*(?:k|lakhs?)?/giu, ' ')
+    .replace(
+      /(?<![\p{L}])(?:up\s*to|under|below|over|above|and|to|from|between|or|less|more|than|min|max)(?![\p{L}])/giu,
+      ' ',
+    );
+  return !/\p{L}{3,}/u.test(rest);
+}
+
 export function extractItems(doc: Document, registry: ElementRegistry): ExtractedItem[] {
   const seen = new Map<string, number>();
   const items: ExtractedItem[] = [];
@@ -116,7 +139,11 @@ export function extractItems(doc: Document, registry: ElementRegistry): Extracte
     const landmark = nearestLandmark(link);
     if (landmark && CHROME.has(landmark)) continue;
     const key = link.href;
+    // A link back to this listing's own path with another query is a filter, sort or page link —
+    // never an item (seen live: an "Up to ₹31,000" price filter was taken as a product).
+    if (sameListing(link, doc)) continue;
     const linkTitle = (computeName(link) ?? '').replace(/\s+/g, ' ').trim();
+    if (isPriceLabel(linkTitle)) continue;
     const earlier = seen.get(key);
     if (earlier !== undefined) {
       // Same product linked twice (image, then title): the titled link is the better target.

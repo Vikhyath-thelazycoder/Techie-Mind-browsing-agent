@@ -248,6 +248,45 @@ describe('ExtensionHost — task context (Phase 1 correction)', () => {
     expect(focused).toEqual([22]);
     expect(store['techieMind.agentTab']).toEqual({ tabId: 22 });
   });
+
+  it('"go back" in a tab a result opened returns to the results it came from (live Flipkart)', async () => {
+    const results = 'https://www.flipkart.com/search?q=laptops';
+    const product = 'https://www.flipkart.com/lenovo-chromebook/p/itm1';
+    const urls: Record<number, string> = { 9: results, 22: product };
+    const { adapter } = fakeAdapter({
+      active: { id: 9, url: results, title: 'Laptops' },
+      tabs: { 9: { url: results, title: 'Laptops' }, 22: { url: product, title: 'Lenovo' } },
+    });
+    // A minimal content script: answers the ping and the probe for each tab's page.
+    Object.assign(adapter, {
+      sendToTab: async (tabId: number, m: { type: string }) =>
+        m.type === 'CONTENT_PING'
+          ? {
+              type: 'CONTENT_PONG',
+              ok: true,
+              origin: new URL(urls[tabId]!).origin,
+              documentId: `doc-${tabId}`,
+              readyState: 'complete',
+            }
+          : {
+              type: 'PROBE_RESULT',
+              url: urls[tabId]!,
+              origin: new URL(urls[tabId]!).origin,
+              title: 't',
+              documentId: `doc-${tabId}`,
+              version: 0,
+              readyState: 'complete',
+              element: null,
+              media: { present: false, playing: false, currentTime: null },
+            },
+    });
+    const host = new ExtensionHost(adapter);
+    expect(await host.prepareTab()).toBe(9); // the agent works in the results tab
+    await host.probe(9, null); // … and has seen the results
+    await host.adoptTab(22); // the product opened in a new tab
+    await host.probe(22, null); // … and the agent has seen the product
+    expect(await host.previousUrl(22)).toBe(results);
+  });
 });
 
 describe('probeWebsite — resolution fetch boundaries', () => {

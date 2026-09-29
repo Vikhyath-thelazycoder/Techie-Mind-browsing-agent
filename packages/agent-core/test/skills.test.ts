@@ -179,6 +179,59 @@ describe('skills — page', () => {
     expect(none.status).toBe('HUMAN_REQUIRED');
   });
 
+  it('"export the table as csv" exports the TABLE even when the page also has links (live Wikipedia)', async () => {
+    // Live on the Mac: a Wikipedia list page has hundreds of links (read as items) and one data
+    // table; the CSV came out as link titles ("title","price",…) instead of the table.
+    const site = shop('/states');
+    site.pages['/states'] = {
+      title: 'States by population',
+      nodes: [
+        node({ nodeId: 'a1', tag: 'a', name: 'Uttar Pradesh', attributes: { href: '/wiki/UP' } }),
+        node({ nodeId: 'a2', tag: 'a', name: 'Maharashtra', attributes: { href: '/wiki/MH' } }),
+      ],
+      items: [
+        {
+          elementId: 'a1',
+          title: 'Uttar Pradesh',
+          price: null,
+          currency: null,
+          rating: null,
+          position: 1,
+        },
+        {
+          elementId: 'a2',
+          title: 'Maharashtra',
+          price: null,
+          currency: null,
+          rating: null,
+          position: 2,
+        },
+      ],
+      text: {
+        title: 'States by population',
+        headings: [],
+        paragraphs: [],
+        tables: [
+          // A small summary box comes first on the live page; "the table" is the data table.
+          { headers: ['Total', 'India'], rows: [['Population', '1,210,854,977']] },
+          {
+            headers: ['Rank', 'State', 'Population'],
+            rows: [
+              ['1', 'Uttar Pradesh', '199,812,341'],
+              ['2', 'Maharashtra', '112,374,333'],
+            ],
+          },
+        ],
+        truncated: false,
+      },
+    };
+    const data = withData(site);
+    const { result } = await run(site, 'export the table as csv');
+    expect(result.status, JSON.stringify(result.error)).toBe('COMPLETED');
+    expect(data.downloads[0]?.content.split('\n')[0]).toBe('"Rank","State","Population"');
+    expect(data.downloads[0]?.content).toContain('"1","Uttar Pradesh","199,812,341"');
+  });
+
   it('screenshot-walkthrough: redacted capture with numbered marks, saved, steps listed', async () => {
     const site = shop();
     const data = withData(site);

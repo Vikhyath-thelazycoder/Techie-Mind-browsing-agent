@@ -88,7 +88,15 @@ function decodeSafe(value: string): string {
 export function safeUrl(url: string): string {
   try {
     const u = new URL(url);
-    return `${u.origin}${redactForLog(decodeSafe(u.pathname))}`;
+    // Redact each path segment on its own so the "/" separators always survive: redacting the
+    // whole path once turned a long product slug plus its leading "/" into one token, leaving
+    // "https://host[REDACTED_SECRET]" — not a URL (seen live on a store product page).
+    const path = decodeSafe(u.pathname)
+      .split('/')
+      .map((segment) => redactForLog(segment))
+      .join('/');
+    const safe = `${u.origin}${path.startsWith('/') ? path : `/${path}`}`;
+    return URL.canParse(safe) ? safe : `${u.origin}/`;
   } catch {
     return '';
   }

@@ -97,8 +97,12 @@ function labelOf(node: DOMNode): string {
   ]
     .filter(Boolean)
     .join(' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // "userEmail" → "user Email"
     .replace(/[_-]+/g, ' ');
 }
+
+/** The field's own type is stronger evidence than any wording near it. */
+const BY_INPUT_TYPE: Partial<Record<string, FillField>> = { email: 'email', tel: 'phone' };
 
 /** Which profile value (if any) goes into this field. */
 export function planField(node: DOMNode, profile: UserProfile): FieldPlan {
@@ -106,8 +110,11 @@ export function planField(node: DOMNode, profile: UserProfile): FieldPlan {
   const semantic = detectField(node);
   if (semantic && NEVER.has(semantic.kind)) return { node, skip: 'secret', label };
   const auto = (node.attributes['autocomplete'] ?? '').toLowerCase();
+  // Order: autocomplete token, then the input type (type=email is e-mail whatever its placeholder
+  // says — live, "name@example.com" made the name planned for an e-mail field), then wording.
   const field =
     AUTOCOMPLETE.find(([re]) => re.test(auto))?.[1] ??
+    (node.inputType ? BY_INPUT_TYPE[node.inputType] : undefined) ??
     LABELS.find(([re]) => re.test(labelOf(node)))?.[1] ??
     null;
   if (!field) return { node, skip: 'unknown', label };

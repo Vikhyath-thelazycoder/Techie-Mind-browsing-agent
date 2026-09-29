@@ -71,6 +71,25 @@ describe('extractItems — generic, no selectors', () => {
     ]);
   });
 
+  it('price-range filters are not products (live amazon.in: "Up to ₹31,000" was picked as the cheapest)', () => {
+    // A sidebar of price filters that link back to the same results path with another query, next
+    // to real product cards. None of the filters may become an item.
+    const doc = dom(`<main><div class="facets"><ul>
+        <li><a href="/search?q=x&rh=p_36%3A-3100000">Up to ₹31,000</a></li>
+        <li><a href="/search?q=x&rh=p_36%3A3100000-5500000">₹31,000 - ₹55,000</a></li>
+        <li><a href="/search?q=x&rh=p_36%3A5500000-">Over ₹55,000</a></li>
+      </ul></div>
+      <div class="grid">
+        <div class="c"><a href="/Apple-iPhone-15/dp/B0CHX1W1XY">Apple iPhone 15 (128 GB) - Black</a><span>₹59,900</span></div>
+        <div class="c"><a href="/Apple-iPhone-15-Plus/dp/B0CHX2F5QT">Apple iPhone 15 Plus (128 GB) - Blue</a><span>₹69,900</span></div>
+      </div></main>`);
+    const items = extractItems(doc, new ElementRegistry());
+    expect(items.map((i) => [i.title, i.price])).toEqual([
+      ['Apple iPhone 15 (128 GB) - Black', 59900],
+      ['Apple iPhone 15 Plus (128 GB) - Blue', 69900],
+    ]);
+  });
+
   it('a card with an image link and a title link to the same product is one item', () => {
     const doc = dom(`<main><div class="grid">
       <div><a href="/p/7"><img alt=""></a><a href="/p/7">Boat Rockerz 450</a><b>₹1,499</b></div>

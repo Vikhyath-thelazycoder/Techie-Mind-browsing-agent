@@ -213,6 +213,10 @@ export class ExtensionHost implements AgentHost {
 
   /** A result opened in a new tab: show it and make it the tab follow-up commands continue in. */
   async adoptTab(tabId: number): Promise<void> {
+    // The new tab has no history of its own; "go back" there means the page it was opened from.
+    const from = this.#agentTab;
+    const origin = from !== null ? this.#trail.get(from)?.at(-1) : undefined;
+    if (origin && !this.#trail.has(tabId)) this.#trail.set(tabId, [origin]);
     await this.adapter.focusTab(tabId).catch(() => undefined);
     this.#remember(tabId);
   }
