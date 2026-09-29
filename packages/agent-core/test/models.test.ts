@@ -146,6 +146,55 @@ describe('model routing — which requests reach a model', () => {
   });
 });
 
+/** Scripted translation (Mac check 2026-09-29): Indian-language requests are read in English. */
+class TranslatingIntelligence extends FakeIntelligence {
+  readonly translated: string[] = [];
+  constructor(private readonly english: string) {
+    super('off', null);
+  }
+  async translate(input: { text: string }): Promise<TierAnswer<string>> {
+    this.translated.push(input.text);
+    return {
+      value: this.english,
+      usage: ModelUsage.parse({
+        tier: 'qwen',
+        modelId: 'qwen2.5vl:7b',
+        purpose: 'plan-action',
+        outcome: 'answered',
+        latencyMs: 900,
+        reason: 'translated to English',
+      }),
+    };
+  }
+}
+
+describe('Indian-language requests are translated to English first', () => {
+  beforeEach(() => clearResolutionCache());
+
+  it('the firewall lets the agent type the English words of a translated request', async () => {
+    // Seen live: "Search for Kannada songs" was blocked as injection (not in the Kannada words).
+    const ai = new TranslatingIntelligence('open shop.fixture.test and search for trail shoes');
+    const site = new VirtualSite('https://shop.fixture.test');
+    const { result, events } = await run(
+      site,
+      'shop.fixture.test ನಲ್ಲಿ ಟ್ರೇಲ್ ಶೂಗಳನ್ನು ಹುಡುಕು',
+      ai,
+    );
+    expect(ai.translated).toHaveLength(1);
+    expect(events.some((e) => e.message.startsWith('Translated to English'))).toBe(true);
+    expect(result.status, result.error?.message).toBe('COMPLETED');
+    expect(result.intent?.query).toBe('trail shoes');
+    expect(result.intent?.language).not.toBe('en');
+  });
+
+  it('English requests are not translated', async () => {
+    const ai = new TranslatingIntelligence('unused');
+    const site = new VirtualSite('https://shop.fixture.test');
+    await run(site, 'open shop.fixture.test and search for trail shoes', ai);
+    expect(ai.translated).toHaveLength(0);
+  });
+});
+
 describe('model routing — runner (Code → Laya → model → ask)', () => {
   beforeEach(() => clearResolutionCache());
 

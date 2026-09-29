@@ -584,7 +584,12 @@ class TaskRun {
         tabId: this.#tab,
         observation: obs,
         live,
-        userText: this.task.text,
+        // The English translation is made from the user's words only (never page text), so text
+        // taken from it is the user's too.
+        userText:
+          this.#requestText && this.#requestText !== this.task.text
+            ? `${this.task.text}\n${this.#requestText}`
+            : this.task.text,
         allowedHosts: [...this.#allowedHosts],
         confirmAt: this.deps.settings.agent.confirmAtRisk,
         now: this.#now(),
@@ -1099,6 +1104,8 @@ class TaskRun {
         });
       }
       this.#intent = cp.intent;
+      // A translated request: its English query was read from the user's words before the pause.
+      this.#requestText = cp.intent?.query ?? this.task.text;
       this.#target = cp.target;
       this.#navigation = cp.navigation;
       this.#tabId = cp.tabId;
