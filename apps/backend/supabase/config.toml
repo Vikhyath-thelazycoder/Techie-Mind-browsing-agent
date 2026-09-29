@@ -1,0 +1,11 @@
+# Supabase CLI project for the Techie Mind monitoring backend (docs/MONITORING_BACKEND.md).
+# Link it to your own project with: supabase link --project-ref <your-project-ref>
+project_id = "techie-mind-monitoring"
+
+[functions.monitor-api]
+# The user's Supabase access token is verified by the gateway and again inside the function.
+verify_jwt = true
+
+[functions.monitor-worker]
+# Called by pg_cron with MONITOR_WORKER_SECRET, not a user token.
+verify_jwt = false

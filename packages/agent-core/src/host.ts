@@ -31,6 +31,12 @@ export interface SavedPage {
   title: string;
   savedAt: number;
 }
+/** Where a new monitor went and what the user should know about it. */
+export interface MonitorSaveResult {
+  backend: boolean;
+  note: string;
+}
+
 export interface BrowserData {
   bookmarks: {
     search(query: string): Promise<BookmarkEntry[]>;
@@ -49,7 +55,11 @@ export interface BrowserData {
     remove(url: string): Promise<boolean>;
   };
   monitors: {
-    add(monitor: Monitor): Promise<void>;
+    /**
+     * Store the monitor. With the monitoring backend connected it is also created there, so it is
+     * checked (and alerts are e-mailed) while the browser is closed.
+     */
+    add(monitor: Monitor, label?: string): Promise<MonitorSaveResult | void>;
     list(): Promise<Monitor[]>;
   };
   /** Hand a file to the browser's download manager (text, or base64 for binary). */

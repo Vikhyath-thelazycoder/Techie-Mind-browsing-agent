@@ -802,3 +802,31 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Human handover (Phase 7): why it stopped, what to do, when it can continue. */
+.tm-handover {
+  margin-top: var(--tm-space-3);
+  padding: var(--tm-space-3);
+  border: 1px solid var(--tm-accent-border);
+  border-radius: var(--tm-radius-sm);
+  background: var(--tm-accent-soft);
+}
+
+.tm-handover > strong {
+  color: var(--tm-accent-strong);
+}
+
+.tm-handover p {
+  margin: var(--tm-space-2) 0 0;
+}
+
+.tm-plan-actions .tm-btn-ghost + .tm-btn-ghost {
+  margin-left: 0;
+}
+
+/* Voice (Phase 7): the mic while listening. */
+.tm-icon-btn.is-listening {
+  color: var(--tm-accent-strong);
+  border-color: var(--tm-accent-border);
+  background: var(--tm-accent-soft);
+}

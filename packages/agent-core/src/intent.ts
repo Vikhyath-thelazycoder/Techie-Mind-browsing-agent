@@ -1,3 +1,4 @@
+import { canonicalize } from './multilingual.js';
 import {
   Domain,
   IntentProfile,
@@ -872,7 +873,20 @@ const NAV_LEFTOVER_NOISE = new Set([
   'site',
 ]);
 
+/**
+ * Resolve a request in any supported language (spec §45): Indic-script and romanized commands are
+ * first rewritten into canonical command words (`canonicalize`), so "<query> play maadi",
+ * "<site>ನಲ್ಲಿ <query> ಪ್ಲೇ ಮಾಡಿ" and "play <query> on <site>" reach the same intent.
+ * The reported language is always detected from what the user actually wrote.
+ */
 export function resolveIntent(request: string): ResolvedIntent {
+  const canonical = canonicalize(request);
+  if (canonical === request) return resolveCanonical(request);
+  const resolved = resolveCanonical(canonical);
+  return { ...resolved, profile: { ...resolved.profile, language: detectLanguage(request) } };
+}
+
+function resolveCanonical(request: string): ResolvedIntent {
   // A request pasted inside quotes ("“now open the samsung one”") means the same without them.
   const original = request.trim().replace(/^["'“”‘’«»]+\s*|\s*["'“”‘’«»]+$/gu, '');
   const language = detectLanguage(original);

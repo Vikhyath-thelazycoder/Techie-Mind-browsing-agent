@@ -1,12 +1,19 @@
 # Multilingual
 
-**Status:** Partial — Phase 1's deterministic resolver handles romanised Hinglish and Kannada code-switching (e.g. "Flipkart alli running shoes search maadu", "YouTube par carnatic violin search karo") and detects Kannada/Devanagari/Tamil/Telugu scripts; validated live. Native-script intent resolution and voice are Phase 7.
+**Status:** Complete in Batch C (Phase 7). English, Hindi, Kannada, Tamil and Telugu work, in native
+script and romanized, and so do code-switched requests. All of them resolve to the same structured
+intent as English.
 
-## Scope
-
-Kannada/Hindi/Tamil/Telugu/Hinglish and code-switched input resolve to the same structured intent; language never changes security policy.
+- **How:** `canonicalize` (`packages/agent-core/src/multilingual.ts`) rewrites command words, site
+  names and grammar particles into the resolver's vocabulary. The words to search for are kept as
+  written.
+- **Language:** always detected from the user's original text. It is reported and used for spoken
+  replies.
+- **Security:** language never changes security policy. The rewritten request goes through the same
+  router, firewall and verification.
+- **Examples and voice:** see [VOICE.md](VOICE.md).
 
 ## References
 
-- Spec §45
+- Spec §44–45
 - Plan §38

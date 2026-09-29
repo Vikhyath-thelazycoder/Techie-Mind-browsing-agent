@@ -1,4 +1,10 @@
-import { matchCustomSkill, runTask, type AgentHost } from '@techie-mind/agent-core';
+import {
+  matchCustomSkill,
+  resumeTask,
+  runTask,
+  type AgentHost,
+  type TaskCheckpoint,
+} from '@techie-mind/agent-core';
 import { loadSkills } from '../shared/skills-store.js';
 import type { BrowserAdapter, Port } from '@techie-mind/browser';
 import type { Intelligence } from '@techie-mind/models';
@@ -39,6 +45,8 @@ export function startTaskService(deps: {
 }): () => void {
   const newTaskId = deps.newTaskId ?? (() => `task-${crypto.randomUUID()}`);
   let running = false;
+  /** Pause / stop flags of the running task, read by the runner between steps. */
+  let control = { pause: false, stop: false };
 
   return deps.adapter.onConnect(TASK_PORT, (port: Port) => {
     const post = (message: TaskPortMessage) => {
@@ -69,15 +77,30 @@ export function startTaskService(deps: {
         });
         return;
       }
-      if (request.data.type === 'KEEPALIVE') return;
+      const data = request.data;
+      if (data.type === 'KEEPALIVE') return;
+      if (data.type === 'CONTROL_TASK') {
+        // Only while a task runs; it takes effect before the next step.
+        if (running) control[data.action] = true;
+        return;
+      }
+      if (data.type === 'RESUME_TASK' && data.decision === 'discard') {
+        void dropCheckpoint(deps.adapter, data.taskId);
+        return;
+      }
       if (running) {
         post({ type: 'TASK_ERROR', code: 'BUSY', message: 'A task is already running.' });
         return;
       }
       running = true;
+      control = { pause: false, stop: false };
+      const job =
+        data.type === 'RUN_TASK'
+          ? execute(data, post)
+          : resume(data.taskId, data.decision === 'approve' ? 'approve' : 'continue', post);
       // Finish all bookkeeping and release the lock BEFORE announcing the outcome, so a client
       // that starts the next task as soon as it hears the result is never told "busy".
-      void execute(request.data, post).then(
+      void job.then(
         (result) => {
           running = false;
           post({ type: 'TASK_RESULT', result });
@@ -94,21 +117,59 @@ export function startTaskService(deps: {
     });
   });
 
-  async function execute(
-    request: Extract<TaskPortRequest, { type: 'RUN_TASK' }>,
-    post: (message: TaskPortMessage) => void,
-  ): Promise<TaskResult> {
-    const settings = await loadSettings(deps.adapter);
+  function taskLogger(settings: Settings, post: (message: TaskPortMessage) => void): Logger {
     const streamSink: LogSink = {
       write: (event: AuditEvent) => post({ type: 'TASK_EVENT', event }),
     };
-    const logger = createLogger({
+    return createLogger({
       component: 'agent',
       sinks: [streamSink, new MemorySink(200), ...(deps.audit ? [deps.audit] : [])],
       level: settings.advanced.logLevel,
       // Privacy engine redaction: page-derived PII never reaches the timeline, audit or console.
       redact: redactForLog,
     });
+  }
+
+  /** Continue a task that stopped for the human (spec §25), from its saved checkpoint. */
+  async function resume(
+    taskId: string,
+    decision: 'continue' | 'approve',
+    post: (message: TaskPortMessage) => void,
+  ): Promise<TaskResult> {
+    const checkpoint = await takeCheckpoint(deps.adapter, taskId);
+    if (!checkpoint) {
+      throw new Error(
+        'That paused task is no longer available (it expired or was already continued).',
+      );
+    }
+    const settings = await loadSettings(deps.adapter);
+    const logger = taskLogger(settings, post);
+    const skills = await loadSkills(deps.adapter);
+    const result = await resumeTask(
+      checkpoint,
+      decision,
+      {
+        host: deps.host,
+        logger,
+        settings,
+        ...(deps.intelligence ? { intelligence: deps.intelligence(settings) } : {}),
+        skillInstructions: skills.instructions,
+        control,
+        onCheckpoint: (cp) => void saveCheckpoint(deps.adapter, cp),
+      },
+      newTaskId(),
+    );
+    await deps.audit?.flush();
+    await appendHistory(deps.adapter, redactResult(result));
+    return result;
+  }
+
+  async function execute(
+    request: Extract<TaskPortRequest, { type: 'RUN_TASK' }>,
+    post: (message: TaskPortMessage) => void,
+  ): Promise<TaskResult> {
+    const settings = await loadSettings(deps.adapter);
+    const logger = taskLogger(settings, post);
     const skills = await loadSkills(deps.adapter);
     const runOne = async (text: string): Promise<TaskResult> => {
       const task = Task.parse({
@@ -129,6 +190,8 @@ export function startTaskService(deps: {
         settings,
         ...(deps.intelligence ? { intelligence: deps.intelligence(settings) } : {}),
         skillInstructions: skills.instructions,
+        control,
+        onCheckpoint: (cp) => void saveCheckpoint(deps.adapter, cp),
       });
       await deps.audit?.flush();
       await appendHistory(deps.adapter, redactResult(result));
@@ -235,4 +298,55 @@ export async function readHistory(adapter: BrowserAdapter): Promise<TaskResult[]
 async function appendHistory(adapter: BrowserAdapter, result: TaskResult): Promise<void> {
   const history = await readHistory(adapter);
   await adapter.storageSet(HISTORY_STORAGE_KEY, [result, ...history].slice(0, HISTORY_LIMIT));
+}
+
+// ── checkpoints of tasks waiting for the human ─────────────────────────────────────────────────
+
+/**
+ * Stored (not memory-only) because the MV3 service worker may be stopped while the user enters an
+ * OTP or solves a CAPTCHA. Step texts are redacted like history; no page values are kept.
+ */
+export const CHECKPOINTS_STORAGE_KEY = 'techieMind.checkpoints';
+const MAX_CHECKPOINTS = 5;
+
+async function readCheckpoints(adapter: BrowserAdapter): Promise<TaskCheckpoint[]> {
+  const stored = await adapter.storageGet(CHECKPOINTS_STORAGE_KEY);
+  if (!Array.isArray(stored)) return [];
+  const now = Date.now();
+  return (stored as TaskCheckpoint[]).filter(
+    (c) => c && typeof c === 'object' && typeof c.expiresAt === 'number' && c.expiresAt > now,
+  );
+}
+
+async function saveCheckpoint(adapter: BrowserAdapter, checkpoint: TaskCheckpoint): Promise<void> {
+  const safe: TaskCheckpoint = {
+    ...checkpoint,
+    steps: checkpoint.steps.map((s) => ({
+      ...s,
+      evidence: redactForLog(s.evidence),
+      target: s.target ? redactForLog(s.target) : null,
+    })),
+  };
+  const others = (await readCheckpoints(adapter)).filter(
+    (c) => c.task.taskId !== checkpoint.task.taskId,
+  );
+  await adapter.storageSet(CHECKPOINTS_STORAGE_KEY, [safe, ...others].slice(0, MAX_CHECKPOINTS));
+}
+
+/** A checkpoint is used once: taking it removes it. */
+async function takeCheckpoint(
+  adapter: BrowserAdapter,
+  taskId: string,
+): Promise<TaskCheckpoint | null> {
+  const all = await readCheckpoints(adapter);
+  const found = all.find((c) => c.task.taskId === taskId) ?? null;
+  await adapter.storageSet(
+    CHECKPOINTS_STORAGE_KEY,
+    all.filter((c) => c.task.taskId !== taskId),
+  );
+  return found;
+}
+
+async function dropCheckpoint(adapter: BrowserAdapter, taskId: string): Promise<void> {
+  await takeCheckpoint(adapter, taskId);
 }

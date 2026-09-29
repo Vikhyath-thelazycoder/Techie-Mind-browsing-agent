@@ -1,10 +1,18 @@
 # Monitoring
 
-**Status:** Not started — Phase 8. `Monitor`, `MonitorResult`, `Notification` contracts exist from Phase 0.
+**Status:** Complete in Batch C (Phase 8). Monitors are server-owned: Supabase Postgres, pg_cron as
+the scheduler, an Edge Function worker and a transactional outbox with e-mail. They keep running
+while the extension, Chrome or the Mac is closed.
 
-## Scope
-
-Server-owned monitors (PostgreSQL + scheduler + worker + transactional outbox) that keep running with the extension closed; false→true transition detection with dedupe; SSRF-safe fetching.
+- Setup, architecture and security: [MONITORING_BACKEND.md](MONITORING_BACKEND.md)
+- Code: `apps/backend/supabase/` (migration, `monitor-api`, `monitor-worker`, `_shared`)
+- Extension: `apps/extension/src/shared/monitoring-client.ts`, Settings → Monitoring, and the
+  `monitor-page` skill
+- Conditions:
+  - price at or below a target;
+  - back in stock;
+  - page content changed.
+- Alerts are sent only on a false → true transition, with a unique dedupe key.
 
 ## References
 

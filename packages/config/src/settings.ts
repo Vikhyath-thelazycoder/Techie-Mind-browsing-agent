@@ -83,8 +83,18 @@ export const AgentSettings = z.strictObject({
   domainBlocklist: z.array(Domain).max(500),
 });
 
+/**
+ * Voice (spec §44). Speech recognition runs on this machine by default (a local Whisper server on a
+ * loopback address), so audio never leaves it. Chrome's Web Speech API sends audio to Google, so it
+ * is only used after the user explicitly agrees (`webSpeechConsent`). Spoken replies use the
+ * browser's on-device speech synthesis.
+ */
 export const VoiceSettings = z.strictObject({
-  sttEngine: z.enum(['web-speech']),
+  sttEngine: z.enum(['local-whisper', 'web-speech']),
+  /** whisper.cpp server `/inference` endpoint (loopback only). */
+  localSttUrl: LoopbackUrl,
+  /** The user agreed that Chrome's speech service (Google) receives the audio. */
+  webSpeechConsent: z.boolean(),
   ttsEnabled: z.boolean(),
   voicePersona: z.enum(['female-natural', 'male-natural', 'system-default']),
 });
@@ -94,8 +104,17 @@ export const LanguageSettings = z.strictObject({
   preferredInputLanguage: Language,
 });
 
+/**
+ * Persistent monitoring backend (spec §38–43): the Supabase project URL and its public anon key.
+ * The anon key is designed to be public — row-level security decides what each signed-in user may
+ * see. Server secrets (service role, Resend) never come here.
+ */
 export const MonitoringSettings = z.strictObject({
   apiUrl: HttpsUrl.nullable(),
+  anonKey: z
+    .string()
+    .max(1024)
+    .regex(/^[A-Za-z0-9._-]*$/, 'the anon key has letters, digits, dots, _ and - only'),
 });
 
 export const NotificationSettings = z.strictObject({
@@ -164,9 +183,15 @@ export const DEFAULT_SETTINGS: Settings = {
     domainAllowlist: [],
     domainBlocklist: [],
   },
-  voice: { sttEngine: 'web-speech', ttsEnabled: false, voicePersona: 'system-default' },
+  voice: {
+    sttEngine: 'local-whisper',
+    localSttUrl: 'http://127.0.0.1:8178/inference',
+    webSpeechConsent: false,
+    ttsEnabled: false,
+    voicePersona: 'system-default',
+  },
   language: { uiLanguage: 'en', preferredInputLanguage: 'en' },
-  monitoring: { apiUrl: null },
+  monitoring: { apiUrl: null, anonKey: '' },
   notifications: { emailAlerts: false },
   research: { maxSitesPerQuery: 6 },
   export: { format: 'json', folder: 'TechieMind' },

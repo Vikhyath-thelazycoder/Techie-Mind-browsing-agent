@@ -242,6 +242,7 @@ export function groundResults(obs: Observation, query: string): ResultCandidate[
       score += 1;
       reasons.push('prominent');
     }
+    score += itemPenalty(href, label, reasons);
     out.push({ node, score, reasons, matchedTerms });
   }
   return out.sort(byScoreThenPosition);
@@ -282,9 +283,38 @@ export function groundListLinks(obs: Observation): ResultCandidate[] {
       score += 1;
       reasons.push('prominent');
     }
+    score += itemPenalty(href, label, reasons);
     out.push({ node, score, reasons, matchedTerms: 0 });
   }
   return out.sort(byScoreThenPosition);
+}
+
+/**
+ * Generic URL shapes of profile / channel / author pages (a person or channel, not an item), and
+ * labels of sponsored placements. A result that is one of these is ranked below real items — seen
+ * live: a channel named after the query outranked the videos.
+ */
+const PROFILE_PATH =
+  /^\/(?:@[^/]+\/?$|(?:channel|c|user|profile|profiles|author|authors|creator|people)\/)/i;
+const SPONSORED_LABEL = /^(?:sponsored|ad|advertisement|promoted)\b|\b(?:sponsored|promoted)$/i;
+
+function itemPenalty(href: string, label: string, reasons: string[]): number {
+  let penalty = 0;
+  let path = href;
+  try {
+    path = new URL(href, 'https://x.invalid/').pathname;
+  } catch {
+    // keep the raw href
+  }
+  if (PROFILE_PATH.test(path)) {
+    penalty -= 6;
+    reasons.push('profile/channel page, not an item');
+  }
+  if (SPONSORED_LABEL.test(label.trim())) {
+    penalty -= 3;
+    reasons.push('sponsored placement');
+  }
+  return penalty;
 }
 
 function byPosition(a: Candidate, b: Candidate): number {
