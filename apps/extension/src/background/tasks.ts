@@ -211,6 +211,7 @@ export function startTaskService(deps: {
         skillInstructions: skills.instructions,
         control,
         attachment,
+        digest: request.digest ?? null,
         onCheckpoint: keep(attachment),
       });
       await deps.audit?.flush();

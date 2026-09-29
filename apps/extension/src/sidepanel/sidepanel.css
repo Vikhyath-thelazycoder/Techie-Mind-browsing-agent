@@ -1,9 +1,30 @@
+/* The panel never slides sideways: no horizontal scroll or trackpad rubber-banding. */
+html,
+body {
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
 .tm-shell {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   max-width: 720px;
   margin: 0 auto;
+  overflow-x: hidden;
+}
+
+/* Header pinned at the top (the composer is pinned at the bottom). */
+.tm-shell > .tm-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+/* Long URLs and words in the timeline wrap instead of widening the panel. */
+.tm-main {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* ── Header ─────────────────────────────────────────── */
@@ -549,6 +570,11 @@
 .tm-icon-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.tm-file-error {
+  color: var(--tm-danger, #b42318);
+  border-color: currentColor;
 }
 
 .tm-input-wrap {

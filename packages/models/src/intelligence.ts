@@ -17,11 +17,15 @@ import {
   parseClassification,
   parseInterpretation,
   parseLocation,
+  parseAnswer,
   parseSummary,
   parseTranslation,
   whyInvalid,
 } from './parse.js';
 import {
+  ANALYZE_SCHEMA,
+  ANALYZE_SYSTEM,
+  analyzeMessage,
   INTERPRET_SCHEMA,
   INTERPRET_SYSTEM,
   interpretMessage,
@@ -108,6 +112,26 @@ export interface Intelligence {
    * rules and models read it like a typed English request.
    */
   translate?(input: TranslateInput): Promise<TierAnswer<string>>;
+  /**
+   * Answer a question about a file the user attached: one part of its (redacted) text, or one page
+   * image. Local model only — attached files never go to a remote gateway.
+   */
+  analyzeFile?(input: AnalyzeFileInput): Promise<TierAnswer<string>>;
+}
+
+/** A large file is read in parts; each part (or page image) is one call. */
+export const ANALYZE_TIMEOUT_MS = 120_000;
+
+export interface AnalyzeFileInput {
+  taskId: string;
+  fileName: string;
+  /** The user's question, redacted with the task vault. */
+  question: string;
+  intent: IntentProfile;
+  /** One part of the file's text, redacted with the task vault. */
+  text?: string;
+  /** One page image (the user's own file, read in the side panel). */
+  image?: RedactedImage;
 }
 
 export interface TranslateInput {
@@ -426,6 +450,72 @@ export function createIntelligence(deps: IntelligenceDeps): Intelligence {
         const { outcome, reason } = outcomeOf(error);
         return {
           usage: usage(tier, modelId, 'plan-action', outcome, started, reason),
+          value: null,
+        };
+      }
+    },
+
+    async analyzeFile(input) {
+      const started = clock();
+      const modelId = deps.settings.model.ollama.model;
+      const vision = Boolean(input.image);
+      const usageTier: ModelTier = vision ? 'vision' : tier;
+      const purpose = vision ? 'visual-grounding' : 'plan-action';
+      if (!active.local) {
+        return {
+          usage: usage(
+            usageTier,
+            modelId,
+            purpose,
+            'unavailable',
+            started,
+            'attached files are read only by the local model',
+          ),
+          value: null,
+        };
+      }
+      const check = await checkActive();
+      if (!check.ok) {
+        return {
+          usage: usage(usageTier, modelId, purpose, 'unavailable', started, check.reason),
+          value: null,
+        };
+      }
+      try {
+        const req = request(
+          input.taskId,
+          usageTier,
+          modelId,
+          purpose,
+          input.question,
+          input.intent,
+          null,
+        );
+        const content = await ollamaChat(deps.transport, active.endpoint!, {
+          request: req,
+          model: modelId,
+          system: ANALYZE_SYSTEM,
+          user: analyzeMessage(input.question, input.fileName, input.text ?? null),
+          schema: ANALYZE_SCHEMA,
+          ...(input.image ? { images: [input.image] } : {}),
+          timeoutMs: ANALYZE_TIMEOUT_MS,
+        });
+        const value = parseAnswer(content);
+        return {
+          usage: usage(
+            usageTier,
+            modelId,
+            purpose,
+            value ? 'answered' : 'invalid',
+            started,
+            value ? 'answered about the attached file' : 'not an answer',
+          ),
+          value,
+        };
+      } catch (error) {
+        const { outcome, reason } = outcomeOf(error);
+        return {
+          usage: usage(usageTier, modelId, purpose, outcome, started, reason),
           value: null,
         };
       }

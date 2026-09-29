@@ -10,8 +10,39 @@ import { RecoveryDecision } from './verification.js';
 /** Long-lived port name used by extension pages to run tasks and stream progress. */
 export const TASK_PORT = 'techie-mind/task';
 
-/** Largest file the user can attach for an upload (bytes). */
-export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+/**
+ * Largest file that can be put into a page's upload field (bytes). Bounded by Chrome's 64 MB
+ * extension message limit once the file is base64-encoded.
+ */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/** Largest file the user can attach to ask about (read in the side panel; only text/images go on). */
+export const MAX_ANALYSIS_BYTES = 50 * 1024 * 1024;
+
+/** Most characters of file text kept for the local model (read in parts). */
+export const MAX_DIGEST_TEXT = 400_000;
+
+/**
+ * What the side panel read from an attached file for "ask about this file": its text (PDF, text
+ * files) and/or a few page images (images, scanned PDFs). Sent only to the LOCAL model.
+ */
+export const FileDigest = z.strictObject({
+  name: z.string().trim().min(1).max(255),
+  kind: z.enum(['pdf', 'image', 'text']),
+  pages: z.number().int().min(0).max(100_000),
+  text: z.string().max(MAX_DIGEST_TEXT),
+  /** JPEG base64, at most 4 (images, or the first pages of a scanned PDF). */
+  images: z
+    .array(
+      z.strictObject({
+        base64: z.string().max(4 * 1024 * 1024),
+        width: z.number().int().min(1).max(4096),
+        height: z.number().int().min(1).max(4096),
+      }),
+    )
+    .max(4),
+});
+export type FileDigest = z.infer<typeof FileDigest>;
 
 /**
  * A file the user attached in the side panel (paperclip) for "upload it". It stays on this device:
@@ -32,6 +63,8 @@ export const RunTaskRequest = z.strictObject({
   mode: TaskMode,
   source: z.enum(['typed', 'voice', 'skill', 'rerun']),
   attachment: FileAttachment.nullable().optional(),
+  /** The attached file as read by the panel, for questions about the file. */
+  digest: FileDigest.nullable().optional(),
 });
 export type RunTaskRequest = z.infer<typeof RunTaskRequest>;
 

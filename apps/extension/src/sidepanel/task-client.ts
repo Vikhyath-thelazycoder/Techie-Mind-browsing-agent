@@ -20,6 +20,7 @@ import {
   type AuditEvent,
   type CustomSkill,
   type FileAttachment,
+  type FileDigest,
   type IntentProfile,
   type TaskMode,
   type TaskResult,
@@ -105,9 +106,24 @@ export function previewPlan(
   // for real (it observes the page) and falls back to another destination when it cannot.
   const fit = context ? { canSearch: true, hasMedia: true } : null;
   const route = decideNavigation(profile, context, needsContextFit(profile, context) ? fit : null);
+  const verify = 'Verify the result';
+  // The panel sees only the active tab (its own page when opened as a tab); the agent also knows
+  // the web tab you were last on. Page commands must not be blocked here ("summarize this page").
+  if (!route.ok && !context && route.code === 'NO_RESULTS_CONTEXT' && profile.action) {
+    return {
+      text,
+      intent: profile,
+      destination: null,
+      steps: [
+        'Use the web page you were last on',
+        profile.action.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
+        verify,
+      ],
+      problem: null,
+    };
+  }
   if (!route.ok)
     return { text, intent: profile, destination: null, steps: [], problem: route.message };
-  const verify = 'Verify the result';
   if (route.resolveName) {
     const plan = planGoals(profile, PLACEHOLDER_TARGET);
     const rest = plan.ok ? plan.goals.slice(1).map(describeGoal) : [];
@@ -259,10 +275,11 @@ export function useTaskRunner(adapter: BrowserAdapter) {
       mode: TaskMode,
       source: RunTaskRequest['source'] = 'typed',
       attachment: FileAttachment | null = null,
+      digest: FileDigest | null = null,
     ) =>
       start(
         text,
-        RunTaskRequest.parse({ type: 'RUN_TASK', text, mode, source, attachment }),
+        RunTaskRequest.parse({ type: 'RUN_TASK', text, mode, source, attachment, digest }),
         false,
       ),
     [start],

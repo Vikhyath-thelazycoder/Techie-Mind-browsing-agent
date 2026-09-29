@@ -2,8 +2,10 @@ import type { BrowserAdapter } from '@techie-mind/browser';
 import { PRODUCT_NAME, resolveActiveModel, type Settings } from '@techie-mind/config';
 import {
   FileAttachment,
+  MAX_ANALYSIS_BYTES,
   MAX_ATTACHMENT_BYTES,
   OpenSettingsRequest,
+  type FileDigest,
   type CustomSkill,
   HISTORY_STORAGE_KEY,
   TaskResult,
@@ -14,6 +16,7 @@ import { loadSkills } from '../shared/skills-store.js';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
 import { saveSettings, useSettings } from '../ui/settings-store.js';
 import { RunView } from './activity.js';
+import { buildDigest, isAnalyzable } from './file-digest.js';
 import { HistoryView } from './history.js';
 import { skillMenuItems } from './skill-menu.js';
 import { useTaskRunner } from './task-client.js';
@@ -44,8 +47,27 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
     speakResult(result, settings.voice.voicePersona);
   }, [runner.state.result, settings.voice.ttsEnabled, settings.voice.voicePersona]);
 
-  // The file attached with the paperclip, for "upload it". Memory only; cleared on New.
+  // The file attached with the paperclip: "upload it" puts it into the page (≤ 25 MB); any other
+  // request is a question about it, answered by the local model (≤ 50 MB). Memory only.
   const [attachment, setAttachment] = useState<FileAttachment | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const pendingDigest = useRef<FileDigest | null>(null);
+  const attach = (next: FileAttachment | null, picked: File | null) => {
+    setAttachment(next);
+    setFile(picked);
+    setFileError(null);
+  };
+  /** A question about the attached file: read it here; only its text/images go to the local model. */
+  const digestFor = async (text: string): Promise<FileDigest | null> => {
+    if (!file || /^\s*(?:upload|attach)\b/i.test(text) || !isAnalyzable(file)) return null;
+    try {
+      return await buildDigest(file);
+    } catch {
+      setFileError(`Could not read "${file.name}". Is it a valid PDF, image or text file?`);
+      return null;
+    }
+  };
   // The latest task in history, for the privacy inspector when nothing ran in this panel yet.
   const [lastResult, setLastResult] = useState<TaskResult | null>(null);
   useEffect(() => {
@@ -57,13 +79,15 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
       );
   }, [view, adapter]);
 
-  const submit = (text: string, source: 'typed' | 'rerun' | 'voice' = 'typed') => {
+  const submit = async (text: string, source: 'typed' | 'rerun' | 'voice' = 'typed') => {
     const trimmed = text.trim();
     if (!trimmed || runner.state.phase === 'running') return;
     setView('agent');
     setDraft('');
+    const digest = await digestFor(trimmed);
+    pendingDigest.current = digest;
     if (settings.agent.autonomy === 'ask-before-acting') runner.preview(trimmed);
-    else runner.run(trimmed, mode, source, attachment);
+    else runner.run(trimmed, mode, source, attachment, digest);
   };
 
   const openSettings = () => {
@@ -148,7 +172,7 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
         {view === 'agent' && runner.state.phase === 'idle' ? (
           <AgentView
             onOpenSettings={openSettings}
-            onRun={(text) => submit(text)}
+            onRun={(text) => void submit(text)}
             onPrefill={(text) => {
               setDraft(text);
               document.getElementById('tm-task-input')?.focus();
@@ -158,14 +182,16 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
         {view === 'agent' && runner.state.phase !== 'idle' ? (
           <RunView
             state={runner.state}
-            onRun={() => runner.run(runner.state.text, mode, 'typed', attachment)}
+            onRun={() =>
+              runner.run(runner.state.text, mode, 'typed', attachment, pendingDigest.current)
+            }
             onCancel={runner.reset}
             onControl={runner.control}
             onResume={runner.resume}
           />
         ) : null}
         {view === 'history' ? (
-          <HistoryView adapter={adapter} onRerun={(text) => submit(text, 'rerun')} />
+          <HistoryView adapter={adapter} onRerun={(text) => void submit(text, 'rerun')} />
         ) : null}
         {view === 'privacy' ? (
           <PrivacyView settings={settings} result={runner.state.result ?? lastResult} />
@@ -181,10 +207,13 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
           mode={mode}
           onMode={setMode}
           running={runner.state.phase === 'running'}
-          onSubmit={() => submit(draft)}
-          onVoice={(text) => submit(text, 'voice')}
+          onSubmit={() => void submit(draft)}
+          onVoice={(text) => void submit(text, 'voice')}
           attachment={attachment}
-          onAttachment={setAttachment}
+          file={file}
+          onAttachment={attach}
+          fileError={fileError}
+          onFileError={setFileError}
         />
       ) : null}
     </div>
@@ -482,31 +511,40 @@ function Composer(props: {
   onSubmit: () => void;
   onVoice: (text: string) => void;
   attachment: FileAttachment | null;
-  onAttachment: (file: FileAttachment | null) => void;
+  file: File | null;
+  onAttachment: (attachment: FileAttachment | null, file: File | null) => void;
+  fileError: string | null;
+  onFileError: (error: string | null) => void;
 }) {
-  const { mode } = props;
-  const [fileError, setFileError] = useState<string | null>(null);
+  const { mode, fileError } = props;
   const fileInput = useRef<HTMLInputElement | null>(null);
   const pickFile = async (file: File | undefined) => {
-    setFileError(null);
+    props.onFileError(null);
     if (!file) return;
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      setFileError(`"${file.name}" is larger than 10 MB.`);
+    const mb = (n: number) => Math.round(n / (1024 * 1024));
+    if (file.size > MAX_ANALYSIS_BYTES) {
+      props.onAttachment(null, null);
+      props.onFileError(
+        `"${file.name}" is ${mb(file.size)} MB — larger than ${mb(MAX_ANALYSIS_BYTES)} MB, so it was not attached.`,
+      );
       return;
     }
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    }
-    props.onAttachment(
-      FileAttachment.parse({
+    // Up to 25 MB it can also be put into a page ("upload it"); bigger files are for questions only.
+    let attachment: FileAttachment | null = null;
+    if (file.size <= MAX_ATTACHMENT_BYTES) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      }
+      attachment = FileAttachment.parse({
         name: file.name.slice(0, 255),
         mime: file.type.slice(0, 128),
         size: file.size,
         base64: btoa(binary),
-      }),
-    );
+      });
+    }
+    props.onAttachment(attachment, file);
   };
   const voice = useVoiceInput(props.settings, props.onVoice);
   const language =
@@ -646,17 +684,23 @@ function Composer(props: {
         />
       </div>
 
-      {props.attachment || fileError ? (
+      {fileError ? (
+        <p class="tm-notice tm-file-error" role="alert" data-testid="attachment-error">
+          <span aria-hidden="true">✕</span> {fileError}{' '}
+          <button type="button" class="tm-link" onClick={() => props.onFileError(null)}>
+            Dismiss
+          </button>
+        </p>
+      ) : props.file ? (
         <p class="tm-notice" role="status" data-testid="attachment-chip">
-          {fileError ?? (
-            <>
-              📎 {props.attachment!.name} ({Math.max(1, Math.round(props.attachment!.size / 1024))}{' '}
-              KB) — say "upload it" on the page.{' '}
-              <button type="button" class="tm-link" onClick={() => props.onAttachment(null)}>
-                Remove
-              </button>
-            </>
-          )}
+          📎 {props.file.name} (
+          {props.file.size >= 1024 * 1024
+            ? `${(props.file.size / (1024 * 1024)).toFixed(1)} MB`
+            : `${Math.max(1, Math.round(props.file.size / 1024))} KB`}
+          ) — ask about it{props.attachment ? ', or say "upload it" on a page' : ''}.{' '}
+          <button type="button" class="tm-link" onClick={() => props.onAttachment(null, null)}>
+            Remove
+          </button>
         </p>
       ) : null}
       {voice.error ? (
@@ -728,12 +772,12 @@ function Composer(props: {
           />
           <button
             type="button"
-            class={`tm-icon-btn${props.attachment ? ' is-listening' : ''}`}
+            class={`tm-icon-btn${props.file ? ' is-listening' : ''}`}
             data-testid="attach"
             title={
-              props.attachment
-                ? `Attached: ${props.attachment.name} — say "upload it" on a page with an upload field`
-                : 'Attach a file to upload into a page (stays on this computer until you ask to upload it)'
+              props.file
+                ? `Attached: ${props.file.name} — ask about it, or say "upload it" on a page`
+                : 'Attach a PDF, image or text file (up to 50 MB) to ask about it, or to upload into a page. It stays on this computer.'
             }
             onClick={() => fileInput.current?.click()}
           >

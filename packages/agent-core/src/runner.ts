@@ -10,6 +10,7 @@ import {
   type DOMNode,
   type ExecuteResponse,
   type ExpectedOutcome,
+  type FileDigest,
   type IntentProfile,
   type ModelUsage,
   type NavigationDecision,
@@ -112,6 +113,8 @@ export interface RunnerDeps {
   skillInstructions?: Partial<Record<SkillId, string>>;
   /** The file the user attached (paperclip) for an upload; stays on this device. */
   attachment?: { fileRef: string; name: string; mime: string; size: number; base64: string } | null;
+  /** The attached file as read by the side panel, for questions about it (local model only). */
+  digest?: FileDigest | null;
   /** Pause / stop requests from the user, read between steps — never halfway through an action. */
   control?: { readonly pause: boolean; readonly stop: boolean };
   /** Receives the saved state of a task that stopped for the human and can continue (spec §25). */
@@ -226,6 +229,38 @@ const STALE_CHECKS: Partial<Record<FirewallDecision['check'], ExecuteResponse['c
 };
 
 /** Settle budgets. Kept small: deterministic steps should be fast (spec §81). */
+/** Attached files are read in parts of this size (the local model's context), at most this many. */
+const FILE_PART_CHARS = 24_000;
+const FILE_PARTS = 12;
+/** Commands that act on the open page or elsewhere, never on the attached file. */
+const PAGE_ACTIONS = new Set([
+  'upload_file',
+  'scroll',
+  'go_back',
+  'go_forward',
+  'add_to_cart',
+  'checkout',
+  'fill_form',
+  'submit_form',
+  'pick_item',
+  'open_result',
+  'play_result',
+  'open_element',
+  'play_element',
+]);
+
+/** Is this request about the attached file (rather than the page, a site, or an upload)? */
+function isAboutFile(profile: IntentProfile, text: string): boolean {
+  if (profile.action && PAGE_ACTIONS.has(profile.action)) return false;
+  if (profile.targetDomain || profile.siteName) return false;
+  // "summarize this page / the website": the page, not the file.
+  if (profile.action === 'summarize' && /\b(?:page|site|website|tab|article)\b/i.test(text)) {
+    return false;
+  }
+  if (profile.action === 'skill') return false;
+  return true;
+}
+
 /** Hindi, Kannada, Tamil or Telugu script: translate the request to English before reading it. */
 const INDIC_SCRIPT = /\p{Script=Devanagari}|\p{Script=Kannada}|\p{Script=Tamil}|\p{Script=Telugu}/u;
 const NAVIGATION_SETTLE_MS = 20_000;
@@ -910,6 +945,10 @@ class TaskRun {
         async () => resolveIntent(this.task.text).profile,
       );
       const code = await this.#toEnglish(original);
+      // A file is attached and the request is about it (not "upload it", another site, or the page).
+      if (this.deps.digest && isAboutFile(code, this.#requestText)) {
+        return await this.#analyzeFile(this.deps.digest, code);
+      }
       // Where to act — decided BEFORE any navigation, from the wording and the open tab.
       const context = await this.#timed('context', () => this.deps.host.currentContext());
       // Code first; only a reading code is unsure of goes to the model tiers.
@@ -1154,6 +1193,98 @@ class TaskRun {
       const message = error instanceof Error ? error.message : String(error);
       return this.#finish('FAILED', { code, message });
     }
+  }
+
+  /**
+   * Answer a question about the attached file with the LOCAL model: page images one by one, the
+   * text in parts (notes per part, then one combined answer). Text is redacted with the task vault
+   * first; placeholders are restored only in the answer shown here.
+   */
+  async #analyzeFile(digest: FileDigest, code: IntentProfile): Promise<TaskResult> {
+    this.#intent = code;
+    this.#emit(
+      'SYSTEM',
+      `Reading "${digest.name}" (${digest.kind}, ${digest.pages} page${digest.pages === 1 ? '' : 's'}) on this device`,
+      { file: true, kind: digest.kind, pages: digest.pages },
+    );
+    const analyze = this.deps.intelligence?.analyzeFile?.bind(this.deps.intelligence);
+    if (!analyze) {
+      return this.#finish('HUMAN_REQUIRED', {
+        code: 'MODEL_UNAVAILABLE',
+        message: 'Reading files needs the local model. Start Ollama, then ask again.',
+      });
+    }
+    const question = redactText(this.#requestText, this.#vault).text;
+    const intent = { ...code, query: null, siteName: null, entities: [], constraints: [] };
+    const ask = async (
+      part: { text?: string; image?: FileDigest['images'][number] },
+      q = question,
+    ) => {
+      const answer = await this.#timed('model', () =>
+        analyze({
+          taskId: this.task.taskId,
+          fileName: digest.name,
+          question: q,
+          intent,
+          ...(part.text !== undefined ? { text: part.text } : {}),
+          ...(part.image ? { image: { ...part.image, redacted: true as const, regions: 0 } } : {}),
+        }),
+      );
+      this.#recordModel(answer.usage);
+      return answer.value;
+    };
+
+    const notes: string[] = [];
+    for (const [i, image] of digest.images.entries()) {
+      this.#checkBudget();
+      const note = await ask({ image });
+      if (note) notes.push(digest.images.length > 1 ? `Page ${i + 1}: ${note}` : note);
+    }
+    const text = redactText(digest.text, this.#vault).text;
+    const parts: string[] = [];
+    for (let at = 0; at < text.length && parts.length < FILE_PARTS; at += FILE_PART_CHARS) {
+      parts.push(text.slice(at, at + FILE_PART_CHARS));
+    }
+    for (const [i, part] of parts.entries()) {
+      this.#checkBudget();
+      if (parts.length > 1) {
+        this.#emit('SYSTEM', `Reading part ${i + 1} of ${parts.length}`, { part: i + 1 });
+      }
+      const note = await ask(
+        { text: part },
+        parts.length > 1
+          ? `${question}\n(This is part ${i + 1} of ${parts.length} of the file. Answer from this part only; say "nothing relevant" if it has nothing.)`
+          : question,
+      );
+      if (note) notes.push(note);
+    }
+    let answer: string | null = notes.length === 1 ? notes[0]! : null;
+    if (notes.length > 1) {
+      answer = await ask(
+        { text: notes.join('\n\n').slice(0, FILE_PART_CHARS) },
+        `${question}\n(The file content below is notes from each part of the file. Combine them into one answer.)`,
+      );
+    }
+    if (!answer) {
+      return this.#finish('FAILED', {
+        code: 'MODEL_NO_ANSWER',
+        message:
+          text.length === 0 && digest.images.length === 0
+            ? `No readable content was found in "${digest.name}".`
+            : 'The local model did not answer. Check that Ollama is running, then ask again.',
+      });
+    }
+    const shown = answer.replace(
+      /\b[A-Z]{2,24}_\d{3}\b/g,
+      (t) => this.#vault.resolve(t, { consume: false }) ?? t,
+    );
+    this.#output = {
+      kind: 'text',
+      title: `About ${digest.name}`.slice(0, 200),
+      text: shown.slice(0, 8000),
+      source: 'model',
+    };
+    return this.#finish('COMPLETED', null);
   }
 
   /** A conversational answer: shown as text, nothing opened or clicked. */

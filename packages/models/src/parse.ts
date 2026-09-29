@@ -170,6 +170,14 @@ export function parseLocation(raw: unknown, width: number, height: number): Visu
 }
 
 /** A summary answer: one JSON object with a bounded "summary" string and nothing else. */
+/** `{"answer": "..."}` → the answer about an attached file; anything else → null. */
+export function parseAnswer(raw: unknown): string | null {
+  const o = asObject(raw);
+  if (!o || Object.keys(o).some((k) => k !== 'answer')) return null;
+  const text = typeof o['answer'] === 'string' ? o['answer'].trim() : '';
+  return text.length > 0 && text.length <= 8000 ? text : null;
+}
+
 /** `{"english": "..."}` → the English request; anything else (or still non-Latin text) → null. */
 export function parseTranslation(raw: unknown): string | null {
   const o = asObject(raw);
