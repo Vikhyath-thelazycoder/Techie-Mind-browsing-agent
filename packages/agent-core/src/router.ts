@@ -272,7 +272,13 @@ export function decideNavigation(
       reason: `${why}; searching the web as a last resort`,
     };
   }
-  return { ok: false, code: 'NO_TARGET', message: 'The request names no website or query.' };
+  return {
+    ok: false,
+    code: 'NO_TARGET',
+    message: context
+      ? 'The request names no website or query.'
+      : 'No web page is open in this tab. Open the page first, or name a website or what to search for.',
+  };
 
   function unavailable(): NavigationDecisionResult {
     return {

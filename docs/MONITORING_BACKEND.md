@@ -54,7 +54,13 @@ You need: a free Supabase account, a free Resend account, and the Supabase CLI
    The cron job `techie-mind-monitor-worker` (created by the migration) now calls the worker every
    5 minutes. To check it: `select * from cron.job_run_details order by start_time desc limit 5;`
 6. **Auth.** Supabase → Authentication → Providers: e-mail is on by default. Keep "Confirm email"
-   on, because alerts only go to confirmed addresses.
+   on, because alerts only go to confirmed addresses. In Authentication → URL Configuration, set
+   **Site URL** to `https://<project-ref>.supabase.co` (or any page you own): the confirmation link
+   redirects there after confirming. The default `http://localhost:3000` shows a page that does not
+   load, although the account _is_ confirmed.
+   **Table access:** new Supabase projects no longer grant table access by default. The migration
+   `…_monitoring_grants.sql` (applied by `supabase db push`) grants it; without it the monitor list
+   fails with "permission denied for table monitors".
 7. **Extension.** Techie Mind → Settings → Monitoring:
    - paste the **Project URL** and the **anon public** key (Project Settings → API);
    - click **Save**;

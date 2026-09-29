@@ -258,11 +258,33 @@ def selftest(laya: "Laya"):
         print(json.dumps({"text": text, "raw": repr(raw)[:400], "answer": answer, "ms": round(ms, 1)}))
 
 
+KEEP_WARM_SECONDS = 120
+
+
+def keep_warm(laya: "Laya"):
+    """After a few idle minutes the first MLX answer took ~3 s (measured 2026-09-29), over the
+    extension's 2.5 s limit; later answers took 0.25–0.6 s. A tiny classification now and then
+    keeps it fast."""
+    import threading  # noqa: PLC0415
+
+    def loop():
+        while True:
+            try:
+                laya.classify("search running shoes", None, CATEGORIES)
+            except Exception:  # noqa: BLE001 — warming must never stop the server
+                pass
+            time.sleep(KEEP_WARM_SECONDS)
+
+    threading.Thread(target=loop, daemon=True, name="laya-keep-warm").start()
+
+
 def main():
     started = time.perf_counter()
     laya = Laya()
     if "--selftest" in sys.argv:
         return selftest(laya)
+    if not FAKE:
+        keep_warm(laya)
     Handler.laya = laya
     Handler.token = load_token()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
