@@ -43,7 +43,7 @@ git-ignored local file and never shown.
 |---|---|---|
 | D1 sign in | ✅ | after the grants fix (below) |
 | D2 price monitor | ✅ | after the preview fix (below). Backend read ₹74,900 at 14:50 and 15:00 IST |
-| D3 / D4 e-mail | ⚠️ | checks ran, but the price (₹74,900) was above the target (₹70,000), so correctly no e-mail. The new **Send test e-mail** button proves the e-mail path |
+| D3 / D4 e-mail | ✅ | price (₹74,900) above target (₹70,000), so correctly no alert. **Send test e-mail** + a Resend check: delivered and received in Gmail (first landed outside the main inbox; alerts go to the monitoring account's own address) |
 | D5 pause/resume/cancel/delete | ✅ | |
 | D6 Chrome closed | ✅ | check at 15:00 IST ran server-side |
 | D7 stock alert | ❌ → fixed | went to Flipkart search |
