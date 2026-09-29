@@ -7,9 +7,10 @@
  *   GET                                   → the user's monitors (+ latest checks)
  *   POST { action: 'create', url, label, kind, threshold?, currency?, intervalMinutes? }
  *   POST { action: 'pause' | 'resume' | 'cancel' | 'delete' | 'check-now', id }
+ *   POST { action: 'test-email' }         → one test e-mail to the account's own address
  */
 import { isEmail, urlProblem, type MonitorKind } from '../_shared/core.ts';
-import { json, rest, userFromRequest } from '../_shared/db.ts';
+import { json, optionalEnv, rest, userFromRequest } from '../_shared/db.ts';
 import { assertFetchable } from '../_shared/safe-fetch.ts';
 
 const MAX_MONITORS_PER_USER = 50;
@@ -93,6 +94,42 @@ async function create(userId: string, email: string, body: Record<string, unknow
   return json({ monitor: rows[0] ?? null }, 201);
 }
 
+/**
+ * Proves the e-mail path works. Always to the account's verified address (never request input);
+ * the idempotency key makes repeat clicks within the same minute send nothing more.
+ */
+async function testEmail(userId: string, email: string) {
+  if (!isEmail(email)) return json({ error: 'your account has no usable e-mail address' }, 400);
+  const apiKey = optionalEnv('RESEND_API_KEY');
+  const from = optionalEnv('MONITOR_FROM_EMAIL');
+  if (!apiKey || !from) {
+    return json({ error: 'e-mail is not configured on the backend (RESEND_API_KEY)' }, 500);
+  }
+  const minute = Math.floor(Date.now() / 60_000);
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+      'idempotency-key': `test:${userId}:${minute}`,
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: 'Techie Mind: test alert',
+      text: 'This is a test from Techie Mind. Your monitoring e-mail works: price, stock and page-change alerts will arrive at this address.',
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    return json(
+      { error: `e-mail provider answered ${res.status}: ${(await res.text()).slice(0, 150)}` },
+      502,
+    );
+  }
+  return json({ ok: true, sentTo: email });
+}
+
 async function control(userId: string, action: string, id: string) {
   if (!UUID.test(id)) return json({ error: 'invalid monitor id' }, 400);
   // Scoped by user_id: another user's id matches nothing (no IDOR).
@@ -151,7 +188,9 @@ async function control(userId: string, action: string, id: string) {
     const response =
       action === 'create'
         ? await create(user.id, user.email, body)
-        : await control(user.id, action, text(body['id'], 64));
+        : action === 'test-email'
+          ? await testEmail(user.id, user.email)
+          : await control(user.id, action, text(body['id'], 64));
     for (const [k, v] of Object.entries(headers)) response.headers.set(k, v);
     return response;
   } catch (error) {

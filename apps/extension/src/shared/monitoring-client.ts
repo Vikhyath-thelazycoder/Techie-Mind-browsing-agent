@@ -208,4 +208,10 @@ export class MonitoringClient {
   async control(action: MonitorAction, id: string): Promise<void> {
     await this.#api('POST', { action, id });
   }
+
+  /** One test e-mail to the signed-in account's own address; returns where it went. */
+  async sendTestEmail(): Promise<string> {
+    const { sentTo } = await this.#api<{ sentTo: string }>('POST', { action: 'test-email' });
+    return sentTo;
+  }
 }

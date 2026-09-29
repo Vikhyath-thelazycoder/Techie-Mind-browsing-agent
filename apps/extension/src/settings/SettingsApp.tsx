@@ -12,6 +12,15 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
 import { saveSettings, useSettings } from '../ui/settings-store.js';
+import { checkServices, privacyTest, type ServiceCheck } from './diagnostics.js';
+import {
+  COUNTRIES,
+  COUNTRY_CODES,
+  INDIAN_CITIES,
+  INDIAN_STATES,
+  splitCitySuggestion,
+  splitPhone,
+} from './places.js';
 import { SkillsSection } from './SkillsSection.js';
 import {
   MonitoringClient,
@@ -116,7 +125,7 @@ export function SettingsApp({ adapter }: { adapter: BrowserAdapter }) {
         {loaded && section === 'skills' ? <SkillsSection adapter={adapter} /> : null}
         {loaded && section === 'monitoring' ? <MonitoringSection {...props} /> : null}
         {loaded && section === 'export' ? <ExportSection {...props} /> : null}
-        {loaded && section === 'diagnostics' ? <DiagnosticsSection adapter={adapter} /> : null}
+        {loaded && section === 'diagnostics' ? <DiagnosticsSection {...props} /> : null}
         {loaded && section === 'about' ? <AboutSection adapter={adapter} /> : null}
       </main>
     </div>
@@ -529,8 +538,9 @@ function PrivacySection({ adapter, settings }: SectionProps) {
         subtitle="Local client-side sanitization, PII masking and fail-closed privacy bounds."
       />
       <p class="tm-note" data-testid="privacy-phase-note">
-        These choices are saved now. The detection and redaction engine that enforces them is
-        implemented in Phase 2; until then no page content is captured or sent anywhere.
+        The privacy engine is active: every page is scanned on this device and sensitive values are
+        masked before anything reaches a model or leaves the browser. Run the check in Diagnostics →
+        Privacy Test.
       </p>
       <Card
         icon="shield"
@@ -608,8 +618,8 @@ function ResearchSection({ adapter, settings }: SectionProps) {
           />
         </Field>
         <p class="tm-note">
-          Search-provider API keys are credentials and are configured with the server-side gateway
-          (Phase 3/6), not stored in browser settings.
+          No API key is needed: research reads public search pages (Google, or DuckDuckGo when
+          Google asks for a human check) and the sources it opens, then summarizes them locally.
         </p>
       </Card>
       <SaveBar
@@ -669,18 +679,97 @@ function ProfileSection({ adapter }: { adapter: BrowserAdapter }) {
         title="Encrypted on this device"
         subtitle="AES-GCM with a key that never leaves this browser. Models only ever see tokens like PHONE_001; the agent never submits a form for you."
       >
-        {PROFILE_LABELS.map(([field, label, autocomplete]) => (
-          <Field key={field} label={label} htmlFor={`profile-${field}`}>
-            <input
-              id={`profile-${field}`}
-              class="tm-text"
-              data-testid={`profile-${field}`}
-              autocomplete={autocomplete}
-              value={profile[field]}
-              onInput={(e) => setProfile({ ...profile, [field]: inputValue(e) })}
-            />
-          </Field>
-        ))}
+        {/* A real <form> with name/autocomplete lets Chrome autofill and paste work normally. */}
+        <form autocomplete="on" onSubmit={(e) => e.preventDefault()}>
+          {PROFILE_LABELS.map(([field, label, autocomplete]) => {
+            if (field === 'phone') {
+              const [code, number] = splitPhone(profile.phone);
+              const setPhone = (c: string, n: string) =>
+                setProfile({ ...profile, phone: n.trim() ? `${c} ${n.trim()}` : '' });
+              return (
+                <Field key={field} label={label} htmlFor="profile-phone">
+                  <div class="tm-phone">
+                    <select
+                      class="tm-text tm-phone-code"
+                      aria-label="Country code"
+                      autocomplete="tel-country-code"
+                      value={code}
+                      onChange={(e) => setPhone(inputValue(e), number)}
+                    >
+                      {COUNTRY_CODES.map(([c, country]) => (
+                        <option key={c} value={c}>
+                          {c} {country}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="profile-phone"
+                      name="tel-national"
+                      class="tm-text"
+                      type="tel"
+                      inputMode="tel"
+                      data-testid="profile-phone"
+                      autocomplete="tel-national"
+                      placeholder="98765 43210"
+                      value={number}
+                      onInput={(e) => setPhone(code, inputValue(e).replace(/^\+\d{1,4}\s*/, ''))}
+                    />
+                  </div>
+                </Field>
+              );
+            }
+            const list =
+              field === 'city'
+                ? 'profile-cities'
+                : field === 'state'
+                  ? 'profile-states'
+                  : field === 'country'
+                    ? 'profile-countries'
+                    : undefined;
+            return (
+              <Field key={field} label={label} htmlFor={`profile-${field}`}>
+                <input
+                  id={`profile-${field}`}
+                  name={autocomplete}
+                  class="tm-text"
+                  data-testid={`profile-${field}`}
+                  autocomplete={autocomplete}
+                  list={list}
+                  value={profile[field]}
+                  onInput={(e) => {
+                    const value = inputValue(e);
+                    if (field === 'city') {
+                      // "Bengaluru, Karnataka" from the suggestions fills the state and country too.
+                      const { city, state } = splitCitySuggestion(value);
+                      setProfile({
+                        ...profile,
+                        city,
+                        ...(state ? { state, country: profile.country || 'India' } : {}),
+                      });
+                    } else {
+                      setProfile({ ...profile, [field]: value });
+                    }
+                  }}
+                />
+              </Field>
+            );
+          })}
+          <datalist id="profile-cities">
+            {INDIAN_CITIES.map(([city, state]) => (
+              <option key={`${city}-${state}`} value={`${city}, ${state}`} />
+            ))}
+          </datalist>
+          <datalist id="profile-states">
+            {INDIAN_STATES.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
+          <datalist id="profile-countries">
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </form>
         <p class="tm-note">
           Passwords, OTPs and card details are never stored here and never filled by the agent.
         </p>
@@ -747,8 +836,14 @@ function ExportSection({ adapter, settings }: SectionProps) {
 
 type Check = { status: 'idle' | 'running' | 'pass' | 'fail'; detail: string };
 
-function DiagnosticsSection({ adapter }: { adapter: BrowserAdapter }) {
+function DiagnosticsSection({ adapter, settings }: SectionProps) {
   const [system, setSystem] = useState<Check>({ status: 'idle', detail: '' });
+  const [privacy, setPrivacy] = useState<ServiceCheck | null>(null);
+  const [services, setServices] = useState<ServiceCheck[] | 'running' | null>(null);
+  const runServices = async () => {
+    setServices('running');
+    setServices(await checkServices(settings));
+  };
 
   const runSystemTest = async () => {
     setSystem({ status: 'running', detail: 'Contacting background service worker…' });
@@ -802,26 +897,58 @@ function DiagnosticsSection({ adapter }: { adapter: BrowserAdapter }) {
         <div class="tm-diag-row">
           <span>
             <strong>Privacy Test</strong>
-            <small>Face detection, credential masking and Indian PII patterns — Phase 2.</small>
+            <small>
+              Runs the on-device redaction engine on made-up personal data (phone, e-mail, PAN,
+              card) and checks that nothing raw is left.
+            </small>
+            {privacy ? (
+              <small
+                data-testid="privacy-test-result"
+                class={`tm-diag-${privacy.ok ? 'pass' : 'fail'}`}
+              >
+                {privacy.ok ? 'PASS · ' : 'FAIL · '}
+                {privacy.detail}
+              </small>
+            ) : null}
           </span>
-          <button type="button" class="tm-btn-outline" disabled>
+          <button
+            type="button"
+            class="tm-btn-outline"
+            data-testid="run-privacy-test"
+            onClick={() => setPrivacy(privacyTest())}
+          >
             Run Privacy Test
           </button>
         </div>
         <div class="tm-diag-row">
           <span>
             <strong>Service Connection</strong>
-            <small>Connection to the active model endpoint — Phase 3.</small>
+            <small>Ollama, Laya, the local voice server and your monitoring backend.</small>
+            {services === 'running' ? <small>Checking…</small> : null}
+            {Array.isArray(services)
+              ? services.map((s) => (
+                  <small key={s.name} class={`tm-diag-${s.ok ? 'pass' : 'fail'}`}>
+                    {s.ok ? 'PASS · ' : 'FAIL · '}
+                    {s.name}: {s.detail}
+                  </small>
+                ))
+              : null}
           </span>
-          <button type="button" class="tm-btn-outline" disabled>
-            Check Service
+          <button
+            type="button"
+            class="tm-btn-outline"
+            data-testid="check-services"
+            disabled={services === 'running'}
+            onClick={() => void runServices()}
+          >
+            Check Services
           </button>
         </div>
       </Card>
       <Card
         icon="activity"
         title="SIH Evaluation & Demo Lab"
-        subtitle="Benchmark dashboard and demo launchers are built in Phase 10."
+        subtitle="Benchmark dashboard and demo launchers arrive in Batch D (final phase)."
       >
         <p class="tm-muted">No benchmarks have been run yet.</p>
       </Card>
@@ -1107,14 +1234,31 @@ function MonitoringSection({ adapter, settings }: SectionProps) {
                 ? `${monitors.length} monitor${monitors.length === 1 ? '' : 's'}`
                 : 'Loading…'}
             </span>
-            <button
-              type="button"
-              class="tm-btn-ghost"
-              disabled={busy}
-              onClick={() => void run(async () => undefined)}
-            >
-              Refresh
-            </button>
+            <span>
+              <button
+                type="button"
+                class="tm-btn-ghost"
+                data-testid="send-test-email"
+                disabled={busy}
+                title="Send one test alert to your account's e-mail address"
+                onClick={() =>
+                  void run(async () => {
+                    const to = await client.sendTestEmail();
+                    return `Test e-mail sent to ${to}. It should arrive within a minute.`;
+                  })
+                }
+              >
+                Send test e-mail
+              </button>
+              <button
+                type="button"
+                class="tm-btn-ghost"
+                disabled={busy}
+                onClick={() => void run(async () => undefined)}
+              >
+                Refresh
+              </button>
+            </span>
           </div>
           <ul class="tm-monitor-list" data-testid="monitor-list">
             {(monitors ?? []).map((m) => (
