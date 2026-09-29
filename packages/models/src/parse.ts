@@ -21,6 +21,7 @@ const FLAT_KEYS = new Set([
   'elementId',
   'media',
   'question',
+  'reply',
   'confidence',
   'reason',
 ]);
@@ -107,6 +108,13 @@ function readInterpretation(raw: unknown): { value: ModelInterpretation } | { wh
         typeof o['question'] === 'string' && o['question'].trim()
           ? o['question'].slice(0, 500)
           : 'Could you say that another way?',
+      reason,
+    };
+  } else if (o['kind'] === 'chat') {
+    candidate = {
+      kind: 'chat',
+      reply: typeof o['reply'] === 'string' ? o['reply'].slice(0, 600) : '',
+      confidence: o['confidence'],
       reason,
     };
   } else {

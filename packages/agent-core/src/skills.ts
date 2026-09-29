@@ -254,6 +254,11 @@ const PHRASES: Array<{ id: SkillId; re: RegExp; arg?: (m: RegExpExecArray) => st
     arg: (m) => m[1] ?? '',
   },
   {
+    id: 'monitor-page',
+    re: /^(?:(?:tell|notify|alert|inform)\s+me|let\s+me\s+know|(?:monitor|watch|track)\s+(?:this|it)(?:\s+(?:page|product|item))?\s+(?:until|till))\s+(?:when|once|if)?\s*(?:this|it|the\s+(?:product|item))?\s*(?:is\s+|comes\s+|gets\s+)?(?:back\s+in\s+stock|in\s+stock|available(?:\s+again)?|restocked)$/u,
+    arg: () => 'back in stock',
+  },
+  {
     id: 'organize-tabs',
     re: /^close\s+(?:all\s+)?(?:the\s+)?duplicate\s+tabs$/u,
     arg: () => 'close-duplicates',

@@ -57,7 +57,7 @@ import {
   rankResults,
 } from './grounding.js';
 import type { AgentHost } from './host.js';
-import { isAmbiguous, judgeLaya, needsModel, profileFromModel } from './escalate.js';
+import { isAmbiguous, isSmallTalk, judgeLaya, needsModel, profileFromModel } from './escalate.js';
 import { ELEMENT_ENTITY, ELEMENT_LABEL_ENTITY } from './plan.js';
 import { groundRegion, regionToPage, visionWorthTrying } from './vision.js';
 import { formFields, planField } from './forms.js';
@@ -1080,6 +1080,14 @@ class TaskRun {
     }
   }
 
+  /** A conversational answer: shown as text, nothing opened or clicked. */
+  #reply(text: string, source: 'model' | 'extractive', code: IntentProfile): TaskResult {
+    this.#intent = code;
+    this.#output = { kind: 'text', title: 'Reply', text, source };
+    this.#emit('SYSTEM', 'Small talk: replied in the panel, no browsing', { chat: true });
+    return this.#finish('COMPLETED', null);
+  }
+
   #finish(status: TaskStatus, error: { code: string; message: string } | null): TaskResult {
     this.#vault.purge();
     this.#timings.totalMs = this.#clock() - this.#startClock;
@@ -1230,8 +1238,20 @@ class TaskRun {
       }
       return { profile: code };
     };
-    if (!needsModel(code)) return { profile: code };
-    if (!intelligence) return fallback('');
+    const chat = isSmallTalk(this.task.text);
+    if (!chat && !needsModel(code)) return { profile: code };
+    if (!intelligence) {
+      if (chat) {
+        return {
+          finish: this.#reply(
+            "Hi! I'm Techie Mind. Tell me what to open, search, play or do on this page. (Chat replies need the local model — start Ollama to talk with me.)",
+            'extractive',
+            code,
+          ),
+        };
+      }
+      return fallback('');
+    }
 
     const { text: modelText } = redactText(this.task.text, this.#vault);
     // What models see of the code's reading: its text fields redacted like the request, and no
@@ -1246,8 +1266,8 @@ class TaskRun {
     };
     const page = await this.#readPageForModels(context);
 
-    // Tier 1 — Laya: a fast typed decision.
-    if (intelligence.layaEnabled) {
+    // Tier 1 — Laya: a fast typed decision. Small talk has no category there; go straight to tier 2.
+    if (intelligence.layaEnabled && !chat) {
       const laya = await this.#timed('model', () =>
         intelligence.classify({
           taskId: this.task.taskId,
@@ -1294,6 +1314,15 @@ class TaskRun {
     );
     this.#recordModel(answer.usage);
     const value = answer.value;
+    if (chat && value?.kind !== 'chat') {
+      return {
+        finish: this.#reply(
+          "Hi! I'm Techie Mind. Tell me what to open, search, play or do on this page.",
+          'extractive',
+          code,
+        ),
+      };
+    }
     // A description of something on screen that the element list could not settle — the page may
     // show it only visually (image tiles, icon buttons): look at the page (level 4) before asking.
     const lookAtPage = async () =>
@@ -1304,6 +1333,10 @@ class TaskRun {
       return (await lookAtPage()) ?? fallback(`${answer.usage.tier} ${answer.usage.outcome}`);
     if (value.kind === 'abstain')
       return (await lookAtPage()) ?? this.#clarify(value.question, code);
+    if (value.kind === 'chat') {
+      this.#proposer = answer.usage.tier === 'api' ? 'api' : 'qwen';
+      return { finish: this.#reply(value.reply, 'model', code) };
+    }
     const mapped = profileFromModel(value, code, modelText, shown, answer.usage.tier);
     if (!mapped.ok) {
       this.#recordModel({
@@ -2767,10 +2800,10 @@ class TaskRun {
       }
       const canSearch = searchable(obs);
       const category = siteForDomain(context.host)?.category;
-      const hasMedia =
-        category === 'video' ||
-        category === 'music' ||
-        obs.domNodes.some((n) => n.tag === 'video' || n.tag === 'audio');
+      // A known non-media site (a store) with product videos is still not where "play …" belongs.
+      const hasMedia = category
+        ? category === 'video' || category === 'music'
+        : obs.domNodes.some((n) => n.tag === 'video' || n.tag === 'audio');
       this.#emit(
         'SYSTEM',
         `Current tab ${context.host}: ${canSearch ? 'has search' : 'no search'}${hasMedia ? ', media site' : ''}`,

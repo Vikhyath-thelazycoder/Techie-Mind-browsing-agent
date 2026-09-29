@@ -117,6 +117,13 @@ export const ModelInterpretation = z.discriminatedUnion('kind', [
     question: ShortText,
     reason: ShortText,
   }),
+  /** Small talk or a general question that needs no website: a short reply, shown as text only. */
+  z.strictObject({
+    kind: z.literal('chat'),
+    reply: z.string().trim().min(1).max(600),
+    confidence: Confidence,
+    reason: ShortText,
+  }),
 ]);
 export type ModelInterpretation = z.infer<typeof ModelInterpretation>;
 

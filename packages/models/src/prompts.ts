@@ -10,6 +10,7 @@ export const INTERPRET_SYSTEM = `You interpret requests for a privacy-first brow
 Choose "kind":
 - "intent": the user wants to open a website, search, or play media. Set "action" to one of ${ModelIntentAction.options.join(', ')}.
 - "element": the user points at an item already on the page ("the samsung one", "the one with 256 GB", "the cheapest one"). Set "elementId" to the id of that item from the page list. Set "media" true when they want to watch or listen to it.
+- "chat": greetings, small talk, or a general question that needs no website ("how are you", "who are you", "thanks"). Set "reply" to a short, friendly answer (under 50 words) in the user's language. You are Techie Mind, a private browser assistant running on this computer.
 - "abstain": you are not sure. Set "question" to one short question for the user.
 
 Rules:
@@ -25,7 +26,7 @@ Use null for fields that do not apply.`;
 export const INTERPRET_SCHEMA = {
   type: 'object',
   properties: {
-    kind: { type: 'string', enum: ['intent', 'element', 'abstain'] },
+    kind: { type: 'string', enum: ['intent', 'element', 'abstain', 'chat'] },
     action: { type: ['string', 'null'], enum: [...ModelIntentAction.options, null] },
     site: { type: ['string', 'null'] },
     query: { type: ['string', 'null'] },
@@ -33,6 +34,7 @@ export const INTERPRET_SCHEMA = {
     elementId: { type: ['string', 'null'] },
     media: { type: ['boolean', 'null'] },
     question: { type: ['string', 'null'] },
+    reply: { type: ['string', 'null'] },
     confidence: { type: 'number' },
     reason: { type: 'string' },
   },

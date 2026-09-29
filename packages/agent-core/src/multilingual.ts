@@ -76,8 +76,10 @@ const WHOLE_COMMANDS: ReadonlyArray<[RegExp, string]> = [
   [/^(?:ऊपर)\s+(?:स्क्रॉल|स्क्रोल)\s+(?:करो|कीजिए|करें)$/u, 'scroll up'],
   [/^(?:kelage|kelake)\s+scroll\s+(?:maadi|madi|maadu|madu)$/u, 'scroll down'],
   [/^(?:mele)\s+scroll\s+(?:maadi|madi|maadu|madu)$/u, 'scroll up'],
-  [/^(?:neeche|niche)\s+scroll\s+(?:karo|kijiye|karein)$/u, 'scroll down'],
-  [/^(?:upar|oopar)\s+scroll\s+(?:karo|kijiye|karein)$/u, 'scroll up'],
+  [/^(?:neeche|niche)\s+scroll(?:\s+down)?\s+(?:karo|kar\s+do|kijiye|karein)$/u, 'scroll down'],
+  [/^(?:upar|oopar)\s+scroll(?:\s+up)?\s+(?:karo|kar\s+do|kijiye|karein)$/u, 'scroll up'],
+  [/^(?:kelage|kelake)\s+scroll\s+down\s+(?:maadi|madi|maadu|madu)$/u, 'scroll down'],
+  [/^(?:mele)\s+scroll\s+up\s+(?:maadi|madi|maadu|madu)$/u, 'scroll up'],
   // add to cart
   [/^(?:ಇದನ್ನು\s+)?ಕಾರ್ಟ್(?:ಗೆ|\s+ಗೆ)\s+(?:ಸೇರಿಸಿ|ಸೇರಿಸು|ಹಾಕಿ|ಹಾಕು)$/u, 'add to cart'],
   [/^(?:इसे\s+)?कार्ट\s+में\s+(?:डालो|डालें|जोड़ो|जोड़ें|ऐड\s+करो)$/u, 'add to cart'],
@@ -184,6 +186,9 @@ const PHRASES: ReadonlyArray<[string, string]> = [
   ['sabse mehengi', 'most expensive'],
   ['kadime bele', 'cheapest'],
   ['kammi bele', 'cheapest'],
+  ['play maadu', 'play maadi'],
+  ['play madu', 'play maadi'],
+  ['play madi', 'play maadi'],
   ['play pannu', 'play karo'],
   ['play cheyyi', 'play karo'],
   ['play cheyandi', 'play karo'],
@@ -218,10 +223,18 @@ export function canonicalize(request: string): string {
     /\p{Script=Devanagari}|\p{Script=Tamil}|\p{Script=Telugu}|\p{Script=Kannada}/u.test(text);
   const lower = text.toLowerCase();
   const romanized =
-    /\b(?:sabse|kadime|kammi|pannu|cheyyi|cheyandi|thedu|vetuku|hinde|hindakke|wapas|vapas|peeche|piche|kelage|kelake|mele|neeche|niche|upar|oopar|serisi|daalo|dalo|olage|kinta|ginta|se kam|ke neeche|ke niche|ke andar|saaransh|saransh|saaramsha)\b/.test(
+    /\b(?:sabse|kadime|kammi|pannu|cheyyi|cheyandi|thedu|vetuku|hinde|hindakke|wapas|vapas|peeche|piche|kelage|kelake|mele|neeche|niche|upar|oopar|serisi|daalo|dalo|olage|kinta|ginta|se kam|ke neeche|ke niche|ke andar|saaransh|saransh|saaramsha|maadi|maadu|madu|madi|say come|say kam|se come)\b/.test(
       lower,
     );
   if (!hasIndic && !romanized) return request;
+  // Speech-to-text hears "pe 50000 se kam" as English words: "pay 50000 say come".
+  text = text
+    .replace(/\b(flipkart|amazon|myntra|youtube)\s+pay\b/giu, '$1 pe')
+    .replace(/(\d)\s+(?:say|se)\s+(?:come|kam|calm)\b/giu, '$1 se kam');
+  // "YouTube open maadi Kannada songs play maadu": the play/search verb is the command, not "open".
+  if (/\b(?:play|search|dhoondo|huduku|haaku|chalao|bajao)\b/iu.test(text)) {
+    text = text.replace(/\bopen\s+(?:maadi|maadu|madi|madu|karo|kar\s+do)\b/giu, ' ');
+  }
 
   for (const [native, site] of SITE_NAMES) {
     text = text.split(native).join(` ${site} `);

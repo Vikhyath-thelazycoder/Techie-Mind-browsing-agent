@@ -30,9 +30,23 @@ export function isUnsupported(profile: IntentProfile): boolean {
   return profile.entities.some((e) => e.type === UNSUPPORTED_ENTITY);
 }
 
+/** Greetings and chit-chat: answered by the local model as text, never searched on the web. */
+const SMALL_TALK =
+  /^(?:hi|hii+|hello|hey|hola|namaste|namaskara|vanakkam|good\s+(?:morning|afternoon|evening|night)|how\s+are\s+you(?:\s+doing)?|how\s+r\s+u|how\s+is\s+it\s+going|what'?s\s+up|who\s+are\s+you|what\s+are\s+you|what\s+is\s+your\s+name|what'?s\s+your\s+name|what\s+can\s+you\s+do|who\s+(?:made|built|created)\s+you|thanks?(?:\s+you)?|thank\s+you(?:\s+so\s+much)?|ok(?:ay)?\s+thanks?|nice|cool|great|bye|good\s*bye|see\s+you|kaise\s+ho|kaisa\s+hai|hegiddira|hegidiya|chennagiddira|epdi\s+irukinga|ela\s+unnaru)(?:\s+(?:bro|buddy|there|techie(?:\s+mind)?))?[\s!?.,]*$/iu;
+
+export function isSmallTalk(text: string): boolean {
+  return SMALL_TALK.test(text.trim());
+}
+
+/** Indian-language command and grammar words that must never end up inside a search query. */
+const LEFTOVER_WORDS =
+  /(?:^|\s)(?:maadi|maadu|madi|madu|karo|kar|kardo|karna|pe|par|se|kam|mein|alli|nalli|hogu|jao|kholo|dhoondo|dhundo|huduku|chalao|bajao|haaku|hakko|beku|chahiye)(?=\s|$)/iu;
+
 /** Should this reading be checked by the model tiers? */
 export function needsModel(profile: IntentProfile): boolean {
   if (isUnsupported(profile)) return false;
+  // Rules left Indian-language words in the query: let the local model read (translate) it.
+  if (profile.language !== 'en' && profile.query && LEFTOVER_WORDS.test(profile.query)) return true;
   return profile.intent === 'unknown' || profile.confidence < CODE_CONFIDENCE;
 }
 
@@ -89,6 +103,7 @@ export function profileFromModel(
   tier: ModelTier,
 ): ModelMapping {
   if (interp.kind === 'abstain') return { ok: false, reason: 'the model abstained' };
+  if (interp.kind === 'chat') return { ok: false, reason: 'a chat reply is not a browsing task' };
   if (interp.confidence < MODEL_CONFIDENCE) {
     return { ok: false, reason: `model unsure (${interp.confidence.toFixed(2)})` };
   }
