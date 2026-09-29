@@ -12,6 +12,12 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
 import { saveSettings, useSettings } from '../ui/settings-store.js';
+import {
+  controlService,
+  helperInstallCommand,
+  type LocalService,
+  type ServiceState,
+} from '../shared/helper-client.js';
 import { checkServices, privacyTest, type ServiceCheck } from './diagnostics.js';
 import {
   COUNTRIES,
@@ -311,17 +317,16 @@ function ModelsSection({ adapter, settings }: SectionProps) {
           title="Laya — Fast Local Decisions"
           subtitle="A small model that sorts unclear commands in milliseconds, before the larger model is asked."
         >
-          <label class="tm-check">
-            <input
-              type="checkbox"
-              data-testid="laya-enabled"
-              checked={laya.enabled}
-              onChange={(e) =>
-                setLaya({ ...laya, enabled: (e.target as HTMLInputElement).checked })
-              }
-            />
-            Ask Laya first
-          </label>
+          <ServiceSwitch
+            adapter={adapter}
+            settings={settings}
+            service="laya"
+            testId="laya-enabled"
+            label="Laya on (ask Laya first)"
+            on={laya.enabled}
+            onChange={(on) => setLaya({ ...laya, enabled: on })}
+            patch={(on) => ({ model: { laya: { enabled: on } } })}
+          />
           <Field
             label="Laya Adapter URL"
             htmlFor="laya-url"
@@ -395,6 +400,16 @@ function ModelsSection({ adapter, settings }: SectionProps) {
           title="Voice Input & Spoken Output"
           subtitle="Speak a request in English, Hindi, Kannada, Tamil or Telugu; it runs exactly like a typed one."
         >
+          <ServiceSwitch
+            adapter={adapter}
+            settings={settings}
+            service={voice.sttEngine === 'local-whisper' ? 'whisper' : null}
+            testId="voice-enabled"
+            label="Voice input on"
+            on={voice.inputEnabled}
+            onChange={(on) => setVoice({ ...voice, inputEnabled: on })}
+            patch={(on) => ({ voice: { inputEnabled: on } })}
+          />
           <Field
             label="Recognition Engine"
             htmlFor="stt"
@@ -677,7 +692,7 @@ function ProfileSection({ adapter }: { adapter: BrowserAdapter }) {
       <Card
         icon="lock"
         title="Encrypted on this device"
-        subtitle="AES-GCM with a key that never leaves this browser. Models only ever see tokens like PHONE_001; the agent submits a form only when you say "submit the form" and confirm it."
+        subtitle="AES-GCM with a key that never leaves this browser. Models only ever see tokens like PHONE_001; the agent submits a form only when you say ‘submit the form’ and confirm it."
       >
         {/* A real <form> with name/autocomplete lets Chrome autofill and paste work normally. */}
         <form autocomplete="on" onSubmit={(e) => e.preventDefault()}>
@@ -831,6 +846,65 @@ function ExportSection({ adapter, settings }: SectionProps) {
       </Card>
       <SaveBar state={state} onSave={() => void save({ export: exp })} />
     </>
+  );
+}
+
+/**
+ * On/off switch for a local service. Saves the setting at once and, through the Techie Mind helper,
+ * starts or stops the process on this Mac — nothing runs unless it is switched on.
+ */
+function ServiceSwitch(props: {
+  adapter: BrowserAdapter;
+  settings: Settings;
+  /** null: only the setting changes (no local process, e.g. Chrome Web Speech). */
+  service: LocalService | null;
+  testId: string;
+  label: string;
+  on: boolean;
+  onChange: (on: boolean) => void;
+  patch: (on: boolean) => Record<string, unknown>;
+}) {
+  const [state, setState] = useState<ServiceState | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    if (props.service) void controlService(props.service, 'status').then(setState);
+  }, [props.service]);
+  const toggle = async (on: boolean) => {
+    props.onChange(on);
+    setBusy(on ? 'Starting…' : 'Stopping…');
+    await saveSettings(props.adapter, props.settings, props.patch(on));
+    if (props.service) setState(await controlService(props.service, on ? 'start' : 'stop'));
+    setBusy(null);
+  };
+  const status = busy
+    ? busy
+    : !props.service
+      ? ''
+      : !state
+        ? 'Checking…'
+        : state.installed
+          ? `${state.running ? '● Running on this Mac' : '○ Not running'}${state.message && !/is (running|off)$/.test(state.message) ? ` — ${state.message}` : ''}`
+          : state.message;
+  return (
+    <div class="tm-service">
+      <label class="tm-check">
+        <input
+          type="checkbox"
+          data-testid={props.testId}
+          checked={props.on}
+          disabled={busy !== null}
+          onChange={(e) => void toggle((e.target as HTMLInputElement).checked)}
+        />
+        {props.label}
+      </label>
+      {status ? <small class="tm-muted">{status}</small> : null}
+      {props.service && state && !state.installed ? (
+        <small class="tm-muted">
+          One-time setup so this switch can start and stop it — paste in Terminal:{' '}
+          <code>{helperInstallCommand()}</code>
+        </small>
+      ) : null}
+    </div>
   );
 }
 

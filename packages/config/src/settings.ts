@@ -90,6 +90,8 @@ export const AgentSettings = z.strictObject({
  * browser's on-device speech synthesis.
  */
 export const VoiceSettings = z.strictObject({
+  /** Voice input on/off. Off: the mic is disabled and the local voice server can be stopped. */
+  inputEnabled: z.boolean(),
   sttEngine: z.enum(['local-whisper', 'web-speech']),
   /** whisper.cpp server `/inference` endpoint (loopback only). */
   localSttUrl: LoopbackUrl,
@@ -184,6 +186,7 @@ export const DEFAULT_SETTINGS: Settings = {
     domainBlocklist: [],
   },
   voice: {
+    inputEnabled: false,
     sttEngine: 'local-whisper',
     localSttUrl: 'http://127.0.0.1:8178/inference',
     webSpeechConsent: false,

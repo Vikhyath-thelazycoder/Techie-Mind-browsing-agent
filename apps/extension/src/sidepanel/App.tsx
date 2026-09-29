@@ -797,15 +797,19 @@ function Composer(props: {
             class={`tm-icon-btn${voice.phase === 'listening' ? ' is-listening' : ''}`}
             data-testid="voice-input"
             aria-pressed={voice.phase === 'listening'}
-            disabled={props.running || voice.phase === 'transcribing'}
+            disabled={
+              props.running || voice.phase === 'transcribing' || !props.settings.voice.inputEnabled
+            }
             title={
-              voice.phase === 'listening'
-                ? 'Listening… click to finish'
-                : voice.phase === 'transcribing'
-                  ? 'Recognizing…'
-                  : props.settings.voice.sttEngine === 'local-whisper'
-                    ? 'Speak a request (local Whisper — audio stays on this computer)'
-                    : 'Speak a request (Chrome speech recognition)'
+              !props.settings.voice.inputEnabled
+                ? 'Voice is off — turn it on in Settings → AI & Models → Voice & Audio'
+                : voice.phase === 'listening'
+                  ? 'Listening… click to finish'
+                  : voice.phase === 'transcribing'
+                    ? 'Recognizing…'
+                    : props.settings.voice.sttEngine === 'local-whisper'
+                      ? 'Speak a request (local Whisper — audio stays on this computer)'
+                      : 'Speak a request (Chrome speech recognition)'
             }
             onClick={voice.toggle}
           >

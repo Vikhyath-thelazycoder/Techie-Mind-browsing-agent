@@ -60,7 +60,8 @@ export function buildManifest(target: Target, version: string): Record<string, u
       // debugger: trusted clicks for media (Phase 5, setting "trustedMediaClicks"); attached only for
       // the click itself, Chrome shows its "debugging this browser" bar while attached.
       // tabGroups: the organize-tabs skill groups tabs by site (Chrome only).
-      permissions: [...COMMON_PERMISSIONS, 'sidePanel', 'debugger', 'tabGroups'],
+      // nativeMessaging: the optional local helper that switches Laya / the voice server on and off.
+      permissions: [...COMMON_PERMISSIONS, 'sidePanel', 'debugger', 'tabGroups', 'nativeMessaging'],
       background: { service_worker: PATHS.background, type: 'module' },
       side_panel: { default_path: PATHS.sidePanel },
       options_page: PATHS.settings,
