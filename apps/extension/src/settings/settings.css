@@ -202,6 +202,28 @@
   outline: 2px solid var(--tm-accent-soft);
 }
 
+.tm-lab h3 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+}
+
+.tm-lab h3:first-child {
+  margin-top: 0;
+}
+
+.tm-lab-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--tm-border);
+}
+
+.tm-lab-row strong {
+  text-align: right;
+}
+
 .tm-service {
   display: grid;
   gap: 4px;

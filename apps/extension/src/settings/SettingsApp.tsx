@@ -18,6 +18,7 @@ import {
   type LocalService,
   type ServiceState,
 } from '../shared/helper-client.js';
+import { DemoLab } from './demo-lab.js';
 import { checkServices, privacyTest, type ServiceCheck } from './diagnostics.js';
 import {
   COUNTRIES,
@@ -1022,9 +1023,9 @@ function DiagnosticsSection({ adapter, settings }: SectionProps) {
       <Card
         icon="activity"
         title="SIH Evaluation & Demo Lab"
-        subtitle="Benchmark dashboard and demo launchers arrive in Batch D (final phase)."
+        subtitle="Your setup, a benchmark from your own tasks (local history only), the final validation results, and one-click demo commands."
       >
-        <p class="tm-muted">No benchmarks have been run yet.</p>
+        <DemoLab adapter={adapter} settings={settings} />
       </Card>
     </>
   );
