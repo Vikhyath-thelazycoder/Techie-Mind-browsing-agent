@@ -99,3 +99,59 @@ export async function loadProfile(adapter: BrowserAdapter): Promise<UserProfile 
 export async function clearProfile(adapter: BrowserAdapter): Promise<void> {
   await adapter.storageSet(PROFILE_STORAGE_KEY, null);
 }
+
+// ── other sealed values (same scheme, separate key per purpose) ────────────────────────────────
+
+async function sealKey(keyId: string, create: boolean): Promise<CryptoKey | null> {
+  const existing = await idb<CryptoKey | undefined>('readonly', (s) => s.get(keyId));
+  if (existing) return existing;
+  if (!create) return null;
+  const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+    'encrypt',
+    'decrypt',
+  ]);
+  await idb('readwrite', (s) => s.put(key, keyId));
+  return key;
+}
+
+/** Store a JSON value encrypted with a non-extractable key of its own (e.g. a sign-in session). */
+export async function saveSealed(
+  adapter: BrowserAdapter,
+  storageKey: string,
+  keyId: string,
+  value: unknown,
+): Promise<void> {
+  const key = await sealKey(keyId, true);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      key!,
+      new TextEncoder().encode(JSON.stringify(value)),
+    ),
+  );
+  const sealed: Sealed = { v: 1, iv: b64(iv), data: b64(data) };
+  await adapter.storageSet(storageKey, sealed);
+}
+
+export async function loadSealed(
+  adapter: BrowserAdapter,
+  storageKey: string,
+  keyId: string,
+): Promise<unknown> {
+  const sealed = (await adapter.storageGet(storageKey)) as Partial<Sealed> | null;
+  if (!sealed || sealed.v !== 1 || typeof sealed.iv !== 'string' || typeof sealed.data !== 'string')
+    return null;
+  const key = await sealKey(keyId, false);
+  if (!key) return null;
+  try {
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: unb64(sealed.iv) },
+      key,
+      unb64(sealed.data),
+    );
+    return JSON.parse(new TextDecoder().decode(plain)) as unknown;
+  } catch {
+    return null;
+  }
+}

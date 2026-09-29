@@ -138,7 +138,9 @@ export function startTaskService(deps: {
   ): Promise<TaskResult> {
     const checkpoint = await takeCheckpoint(deps.adapter, taskId);
     if (!checkpoint) {
-      throw new Error('That paused task is no longer available (it expired or was already continued).');
+      throw new Error(
+        'That paused task is no longer available (it expired or was already continued).',
+      );
     }
     const settings = await loadSettings(deps.adapter);
     const logger = taskLogger(settings, post);

@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspace @techie-mind/extension",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/backend/tsconfig.json",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

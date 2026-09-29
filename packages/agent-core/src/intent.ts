@@ -875,8 +875,8 @@ const NAV_LEFTOVER_NOISE = new Set([
 
 /**
  * Resolve a request in any supported language (spec §45): Indic-script and romanized commands are
- * first rewritten into canonical command words (`canonicalize`), so "Kannada songs play maadi",
- * "ಯೂಟ್ಯೂಬ್‌ನಲ್ಲಿ ಕನ್ನಡ ಹಾಡು ಪ್ಲೇ ಮಾಡಿ" and "play Kannada songs on YouTube" reach the same intent.
+ * first rewritten into canonical command words (`canonicalize`), so "<query> play maadi",
+ * "<site>ನಲ್ಲಿ <query> ಪ್ಲೇ ಮಾಡಿ" and "play <query> on <site>" reach the same intent.
  * The reported language is always detected from what the user actually wrote.
  */
 export function resolveIntent(request: string): ResolvedIntent {

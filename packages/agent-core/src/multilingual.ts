@@ -86,9 +86,15 @@ const WHOLE_COMMANDS: ReadonlyArray<[RegExp, string]> = [
   // summarize
   [/^(?:ಈ\s+)?(?:ಪುಟದ|ಪೇಜಿನ|ಪೇಜ್)\s+ಸಾರಾಂಶ(?:\s+(?:ಕೊಡಿ|ಹೇಳಿ|ನೀಡಿ))?$/u, 'summarize this page'],
   [/^ಸಾರಾಂಶ\s+(?:ಕೊಡಿ|ಹೇಳಿ|ನೀಡಿ)$/u, 'summarize this page'],
-  [/^(?:इस\s+)?(?:पेज|पन्ने|पृष्ठ)\s+का\s+सारांश(?:\s+(?:दो|दीजिए|बताओ))?$/u, 'summarize this page'],
+  [
+    /^(?:इस\s+)?(?:पेज|पन्ने|पृष्ठ)\s+का\s+सारांश(?:\s+(?:दो|दीजिए|बताओ))?$/u,
+    'summarize this page',
+  ],
   [/^सारांश\s+(?:दो|दीजिए|बताओ)$/u, 'summarize this page'],
-  [/^(?:is\s+)?page\s+ka\s+(?:summary|saaransh|saransh)(?:\s+(?:do|dijiye|batao))?$/u, 'summarize this page'],
+  [
+    /^(?:is\s+)?page\s+ka\s+(?:summary|saaransh|saransh)(?:\s+(?:do|dijiye|batao))?$/u,
+    'summarize this page',
+  ],
   [/^(?:ee\s+)?page\s+(?:summary|saaramsha)(?:\s+(?:kodi|heli))?$/u, 'summarize this page'],
 ];
 
@@ -208,7 +214,7 @@ const KANNADA_OBJECT = /([\u0c80-\u0cff]+?)ನ್ನು(?=\s)/gu;
  */
 export function canonicalize(request: string): string {
   let text = asciiDigits(request.normalize('NFC').replace(ZERO_WIDTH, ''));
-  const hasIndic = /[\u0900-\u097f\u0b80-\u0bff\u0c00-\u0c7f\u0c80-\u0cff]/u.test(text);
+  const hasIndic = /\p{Script=Devanagari}|\p{Script=Tamil}|\p{Script=Telugu}|\p{Script=Kannada}/u.test(text);
   const lower = text.toLowerCase();
   const romanized =
     /\b(?:sabse|kadime|kammi|pannu|cheyyi|cheyandi|thedu|vetuku|hinde|hindakke|wapas|vapas|peeche|piche|kelage|kelake|mele|neeche|niche|upar|oopar|serisi|daalo|dalo|olage|kinta|ginta|se kam|ke neeche|ke niche|ke andar|saaransh|saransh|saaramsha)\b/.test(
@@ -220,7 +226,10 @@ export function canonicalize(request: string): string {
     text = text.split(native).join(` ${site} `);
   }
   text = text.replace(/\s+/g, ' ').trim();
-  const whole = text.toLowerCase().replace(/[.!?।]+$/u, '').trim();
+  const whole = text
+    .toLowerCase()
+    .replace(/[.!?।]+$/u, '')
+    .trim();
   for (const [re, command] of WHOLE_COMMANDS) {
     if (re.test(whole)) return command;
   }

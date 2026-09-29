@@ -13,9 +13,22 @@ import { useEffect, useState } from 'preact/hooks';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
 import { saveSettings, useSettings } from '../ui/settings-store.js';
 import { SkillsSection } from './SkillsSection.js';
+import {
+  MonitoringClient,
+  type BackendMonitor,
+  type MonitorAction,
+} from '../shared/monitoring-client.js';
 
 type Section =
-  'models' | 'privacy' | 'research' | 'profile' | 'skills' | 'export' | 'diagnostics' | 'about';
+  | 'models'
+  | 'privacy'
+  | 'research'
+  | 'profile'
+  | 'skills'
+  | 'monitoring'
+  | 'export'
+  | 'diagnostics'
+  | 'about';
 
 const SECTIONS: ReadonlyArray<{ id: Section; label: string; icon: IconName }> = [
   { id: 'models', label: 'AI & Models', icon: 'cpu' },
@@ -23,6 +36,7 @@ const SECTIONS: ReadonlyArray<{ id: Section; label: string; icon: IconName }> = 
   { id: 'research', label: 'Deep Research', icon: 'search' },
   { id: 'profile', label: 'Profile', icon: 'user' },
   { id: 'skills', label: 'Skills', icon: 'code' },
+  { id: 'monitoring', label: 'Monitoring', icon: 'clock' },
   { id: 'export', label: 'Export', icon: 'upload' },
   { id: 'diagnostics', label: 'Diagnostics', icon: 'activity' },
   { id: 'about', label: 'About', icon: 'info' },
@@ -100,6 +114,7 @@ export function SettingsApp({ adapter }: { adapter: BrowserAdapter }) {
         {loaded && section === 'research' ? <ResearchSection {...props} /> : null}
         {loaded && section === 'profile' ? <ProfileSection adapter={props.adapter} /> : null}
         {loaded && section === 'skills' ? <SkillsSection adapter={adapter} /> : null}
+        {loaded && section === 'monitoring' ? <MonitoringSection {...props} /> : null}
         {loaded && section === 'export' ? <ExportSection {...props} /> : null}
         {loaded && section === 'diagnostics' ? <DiagnosticsSection adapter={adapter} /> : null}
         {loaded && section === 'about' ? <AboutSection adapter={adapter} /> : null}
@@ -432,7 +447,9 @@ function ModelsSection({ adapter, settings }: SectionProps) {
               id="voice-lang"
               class="tm-text"
               value={language}
-              onChange={(e) => setLanguage(inputValue(e) as Settings['language']['preferredInputLanguage'])}
+              onChange={(e) =>
+                setLanguage(inputValue(e) as Settings['language']['preferredInputLanguage'])
+              }
             >
               <option value="en">English</option>
               <option value="hi">Hindi</option>
@@ -851,7 +868,7 @@ function MicrophoneAccess() {
     <div class="tm-field">
       <button
         type="button"
-        class="tm-btn-primary"
+        class="tm-btn-save"
         data-testid="allow-microphone"
         onClick={() => void allow()}
       >
@@ -863,5 +880,312 @@ function MicrophoneAccess() {
         </p>
       ) : null}
     </div>
+  );
+}
+
+// ── Monitoring (Phase 8) ─────────────────────────────────────────────────────────────────────
+
+function describeMonitor(m: BackendMonitor): string {
+  const money = (v: number) =>
+    `${m.currency === 'USD' ? '$' : m.currency === 'EUR' ? '€' : m.currency === 'GBP' ? '£' : '₹'}${Number(v).toLocaleString('en-IN')}`;
+  const what =
+    m.kind === 'price-below' && m.threshold !== null
+      ? `price at or below ${money(m.threshold)}`
+      : m.kind === 'available'
+        ? 'back in stock'
+        : 'page changes';
+  const now =
+    m.kind === 'price-below' && m.last_value !== null
+      ? ` · now ${money(m.last_value)}`
+      : m.kind === 'available' && m.last_available !== null
+        ? ` · ${m.last_available ? 'in stock' : 'out of stock'}`
+        : '';
+  return `${what}${now} · every ${m.interval_minutes} min`;
+}
+
+function when(iso: string | null): string {
+  return iso
+    ? new Date(iso).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+    : 'not yet';
+}
+
+/**
+ * Persistent monitoring: connect YOUR Supabase project (URL + public anon key), sign in, and manage
+ * monitors. Checks and e-mail alerts run on the backend, also while Chrome is closed.
+ */
+function MonitoringSection({ adapter, settings }: SectionProps) {
+  const [apiUrl, setApiUrl] = useState(settings.monitoring.apiUrl ?? '');
+  const [anonKey, setAnonKey] = useState(settings.monitoring.anonKey);
+  const { state, save } = useSaver(adapter, settings);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [who, setWho] = useState<string | null>(null);
+  const [monitors, setMonitors] = useState<BackendMonitor[] | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const client = new MonitoringClient(adapter, settings.monitoring);
+
+  const refresh = async () => {
+    if (!client.configured) return;
+    const signedIn = await client.who();
+    setWho(signedIn);
+    if (!signedIn) return;
+    try {
+      setMonitors(await client.list());
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Could not load monitors.');
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+    // Reload whenever the saved connection changes.
+  }, [settings.monitoring.apiUrl, settings.monitoring.anonKey]);
+
+  const run = async (task: () => Promise<string | void>) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const done = await task();
+      if (done) setMessage(done);
+      await refresh();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Something went wrong.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const act = (action: MonitorAction, id: string) =>
+    void run(async () => {
+      if (action === 'delete' && !confirm('Delete this monitor and its history?')) return;
+      await client.control(action, id);
+      return action === 'check-now' ? 'It will be checked within 5 minutes.' : undefined;
+    });
+
+  return (
+    <>
+      <PageHeader
+        title="Monitoring"
+        subtitle="Price, stock and page-change alerts by e-mail — checked by your own backend, even while Chrome is closed."
+      />
+      <Card
+        icon="clock"
+        title="Monitoring backend (Supabase)"
+        subtitle="Your own Supabase project. Only its URL and public anon key are stored here; server secrets stay in Supabase (docs/MONITORING_BACKEND.md)."
+      >
+        <Field label="Project URL" htmlFor="mon-url" hint="https://<project-ref>.supabase.co">
+          <input
+            id="mon-url"
+            class="tm-text"
+            data-testid="monitoring-url"
+            placeholder="https://abcd1234.supabase.co"
+            value={apiUrl}
+            onInput={(e) => setApiUrl(inputValue(e))}
+          />
+        </Field>
+        <Field
+          label="Anon (public) key"
+          htmlFor="mon-key"
+          hint="Supabase → Project Settings → API → anon public. Never paste the service_role key here."
+        >
+          <input
+            id="mon-key"
+            class="tm-text"
+            data-testid="monitoring-anon-key"
+            autocomplete="off"
+            value={anonKey}
+            onInput={(e) => setAnonKey(inputValue(e).trim())}
+          />
+        </Field>
+      </Card>
+      <SaveBar
+        state={state}
+        onSave={() =>
+          void save({ monitoring: { apiUrl: apiUrl.trim() || null, anonKey: anonKey.trim() } })
+        }
+      />
+
+      {client.configured ? (
+        <Card
+          icon="user"
+          title="Account"
+          subtitle="Alerts go to this account's confirmed e-mail address. The password goes only to Supabase and is never stored."
+        >
+          {who ? (
+            <div class="tm-card-row">
+              <span data-testid="monitoring-account">
+                Signed in as <strong>{who}</strong>
+              </span>
+              <button
+                type="button"
+                class="tm-btn-ghost"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await client.signOut();
+                    setMonitors(null);
+                    return 'Signed out.';
+                  })
+                }
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <>
+              <Field label="E-mail" htmlFor="mon-email">
+                <input
+                  id="mon-email"
+                  type="email"
+                  class="tm-text"
+                  data-testid="monitoring-email"
+                  autocomplete="username"
+                  value={email}
+                  onInput={(e) => setEmail(inputValue(e).trim())}
+                />
+              </Field>
+              <Field label="Password" htmlFor="mon-password">
+                <input
+                  id="mon-password"
+                  type="password"
+                  class="tm-text"
+                  data-testid="monitoring-password"
+                  autocomplete="current-password"
+                  value={password}
+                  onInput={(e) => setPassword(inputValue(e))}
+                />
+              </Field>
+              <div class="tm-plan-actions">
+                <button
+                  type="button"
+                  class="tm-btn-ghost"
+                  disabled={busy || !email || password.length < 8}
+                  data-testid="monitoring-signup"
+                  onClick={() =>
+                    void run(async () => {
+                      const r = await client.signUp(email, password);
+                      setPassword('');
+                      return r === 'confirm-email'
+                        ? 'Account created. Open the confirmation e-mail from Supabase, then sign in here.'
+                        : 'Account created and signed in.';
+                    })
+                  }
+                >
+                  Create account
+                </button>
+                <button
+                  type="button"
+                  class="tm-btn-save"
+                  disabled={busy || !email || !password}
+                  data-testid="monitoring-signin"
+                  onClick={() =>
+                    void run(async () => {
+                      await client.signIn(email, password);
+                      setPassword('');
+                      return 'Signed in.';
+                    })
+                  }
+                >
+                  Sign in
+                </button>
+              </div>
+            </>
+          )}
+        </Card>
+      ) : null}
+
+      {who ? (
+        <Card
+          icon="activity"
+          title="Your monitors"
+          subtitle='Create one from the side panel on a product page: "monitor this product until the price drops below ₹50,000".'
+        >
+          <div class="tm-card-row">
+            <span class="tm-muted">
+              {monitors
+                ? `${monitors.length} monitor${monitors.length === 1 ? '' : 's'}`
+                : 'Loading…'}
+            </span>
+            <button
+              type="button"
+              class="tm-btn-ghost"
+              disabled={busy}
+              onClick={() => void run(async () => undefined)}
+            >
+              Refresh
+            </button>
+          </div>
+          <ul class="tm-monitor-list" data-testid="monitor-list">
+            {(monitors ?? []).map((m) => (
+              <li key={m.id} data-status={m.status}>
+                <div>
+                  <strong>{m.label || new URL(m.url).hostname}</strong>
+                  <small class="tm-muted">{m.url}</small>
+                  <small>
+                    {describeMonitor(m)} · <b>{m.status}</b> · last check {when(m.last_checked_at)}
+                  </small>
+                  {m.last_error ? (
+                    <small class="tm-bad-text">Last problem: {m.last_error}</small>
+                  ) : null}
+                </div>
+                <div class="tm-plan-actions">
+                  {m.status === 'active' ? (
+                    <>
+                      <button
+                        type="button"
+                        class="tm-btn-ghost"
+                        disabled={busy}
+                        onClick={() => act('check-now', m.id)}
+                      >
+                        Check now
+                      </button>
+                      <button
+                        type="button"
+                        class="tm-btn-ghost"
+                        disabled={busy}
+                        onClick={() => act('pause', m.id)}
+                      >
+                        Pause
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      class="tm-btn-ghost"
+                      disabled={busy}
+                      onClick={() => act('resume', m.id)}
+                    >
+                      Resume
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    class="tm-btn-ghost"
+                    disabled={busy}
+                    onClick={() => act('cancel', m.id)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    class="tm-btn-ghost"
+                    disabled={busy}
+                    onClick={() => act('delete', m.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+      {message ? (
+        <p class="tm-notice" role="status" data-testid="monitoring-status">
+          {message}
+        </p>
+      ) : null}
+    </>
   );
 }

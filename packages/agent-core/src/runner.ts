@@ -968,7 +968,10 @@ class TaskRun {
       const goal = goals[i]!;
       if (this.deps.control?.stop) {
         this.#emit('SYSTEM', 'Stopped by you', { goal: goal.kind }, 'warn');
-        return this.#finish('CANCELLED', { code: 'STOPPED_BY_USER', message: 'You stopped the task.' });
+        return this.#finish('CANCELLED', {
+          code: 'STOPPED_BY_USER',
+          message: 'You stopped the task.',
+        });
       }
       if (this.deps.control?.pause) {
         return this.#suspend('paused', `Paused before: ${describeGoal(goal)}`, goals, i);
@@ -2457,7 +2460,11 @@ class TaskRun {
     const page = await this.#page();
     if (!page.clean.startsWith('https://'))
       return this.#done(false, 'only https pages can be monitored');
-    const threshold = /(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(k|lakh)?/iu.exec(arg);
+    // A number is a target price only with price wording ("below ₹50,000"), not "iPhone 15".
+    const threshold =
+      /(?:below|under|less\s+than|drops?\s+(?:to|below)|falls?\s+(?:to|below)|reaches|₹|rs\.?|inr)\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(k|lakh)?/iu.exec(
+        arg,
+      );
     let value = threshold ? Number(threshold[1]!.replace(/,/g, '')) : null;
     if (value !== null && threshold?.[2]) value *= threshold[2].toLowerCase() === 'k' ? 1e3 : 1e5;
     const text = await this.deps.host.extractText?.(this.#tab).catch(() => null);
@@ -2472,7 +2479,9 @@ class TaskRun {
       condition:
         value && value > 0
           ? { kind: 'price-below', threshold: value, currency: 'INR' }
-          : { kind: 'content-changed' },
+          : /\b(?:back\s+in\s+stock|in\s+stock|available|availability|restock)/iu.test(arg)
+            ? { kind: 'available' }
+            : { kind: 'content-changed' },
       intervalMinutes: 60,
       status: 'active',
       recipientId: 'local-user',
@@ -2480,7 +2489,7 @@ class TaskRun {
       lastCheckedAt: null,
     };
     const data = this.#data();
-    await data.monitors.add(monitor);
+    const saved = await data.monitors.add(monitor, page.title ?? '');
     const stored = (await data.monitors.list()).some((x) => x.monitorId === monitor.monitorId);
     this.#output = {
       kind: 'list',
@@ -2488,12 +2497,15 @@ class TaskRun {
       entries: [
         `Page: ${page.clean}`,
         monitor.condition.kind === 'price-below'
-          ? `Notify when the price is below ₹${monitor.condition.threshold.toLocaleString('en-IN')}`
-          : 'Notify when the page changes',
+          ? `Notify when the price is at or below ₹${monitor.condition.threshold.toLocaleString('en-IN')}`
+          : monitor.condition.kind === 'available'
+            ? 'Notify when it is in stock'
+            : 'Notify when the page changes',
         baseline !== null
           ? `Price now: ₹${baseline.toLocaleString('en-IN')}`
           : 'No price found on the page right now',
-        'Checks every 60 minutes once the monitoring backend is connected (Batch C).',
+        saved?.note ??
+          'Saved in this browser only. Connect the monitoring backend in Settings → Monitoring.',
       ],
     };
     return this.#done(

@@ -111,7 +111,9 @@ function HandoverCard(props: {
 }) {
   const h = props.result.handover;
   if (!h) return null;
-  const expires = h.expiresAt ? new Date(h.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  const expires = h.expiresAt
+    ? new Date(h.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
   return (
     <div class="tm-handover" data-testid="handover-card" data-reason={h.reason}>
       <strong>{HANDOVER_TITLE[h.reason] ?? 'Needs you'}</strong>

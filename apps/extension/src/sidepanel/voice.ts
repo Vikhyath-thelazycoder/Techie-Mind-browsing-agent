@@ -130,7 +130,10 @@ export function useVoiceInput(settings: Settings, onText: (text: string) => void
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };
-    const timer = setTimeout(() => recorder.state === 'recording' && recorder.stop(), MAX_RECORDING_MS);
+    const timer = setTimeout(
+      () => recorder.state === 'recording' && recorder.stop(),
+      MAX_RECORDING_MS,
+    );
     recorder.onstop = () => {
       clearTimeout(timer);
       stream.getTracks().forEach((t) => t.stop());
@@ -211,7 +214,12 @@ async function transcribeLocally(url: string, audio: Blob, language: string): Pr
 // ── spoken replies ─────────────────────────────────────────────────────────────────────────────
 
 const PHRASES: Record<string, { done: string; needs: string; failed: string; paused: string }> = {
-  'en-IN': { done: 'Done.', needs: 'I need you.', failed: 'I could not finish.', paused: 'Paused.' },
+  'en-IN': {
+    done: 'Done.',
+    needs: 'I need you.',
+    failed: 'I could not finish.',
+    paused: 'Paused.',
+  },
   'hi-IN': {
     done: 'हो गया।',
     needs: 'मुझे आपकी ज़रूरत है।',

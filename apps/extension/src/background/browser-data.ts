@@ -1,6 +1,7 @@
 import type { BookmarkEntry, BrowserData, SavedPage, TabEntry } from '@techie-mind/agent-core';
 import type { BrowserAdapter } from '@techie-mind/browser';
 import { Monitor } from '@techie-mind/contracts';
+import { MonitoringClient } from '../shared/monitoring-client.js';
 
 /**
  * Browser data for the Phase 6 skills: bookmarks, tabs/tab groups and downloads through the
@@ -138,10 +139,37 @@ export function createBrowserData(api: BrowserDataApi, adapter: BrowserAdapter):
       },
     },
     monitors: {
-      async add(monitor) {
+      async add(monitor, label) {
         const parsed = Monitor.parse(monitor);
         const list = await readList(MONITORS_KEY);
         await adapter.storageSet(MONITORS_KEY, [parsed, ...list].slice(0, MAX_MONITORS));
+        const client = await MonitoringClient.load(adapter);
+        if (!client.configured) {
+          return {
+            backend: false,
+            note: 'Saved in this browser only. Connect the monitoring backend in Settings → Monitoring to get e-mail alerts, checked even while Chrome is closed.',
+          };
+        }
+        try {
+          const c = parsed.condition;
+          const created = await client.create({
+            url: parsed.url,
+            label: label ?? '',
+            kind: c.kind,
+            threshold: c.kind === 'price-below' ? c.threshold : null,
+            currency: c.kind === 'price-below' ? c.currency : null,
+            intervalMinutes: Math.max(15, parsed.intervalMinutes),
+          });
+          return {
+            backend: true,
+            note: `Checked every ${created.interval_minutes} minutes by your monitoring backend, even while Chrome is closed. Alerts are e-mailed to your account address.`,
+          };
+        } catch (error) {
+          return {
+            backend: false,
+            note: `Saved in this browser only — the monitoring backend did not accept it: ${error instanceof Error ? error.message : 'unknown error'}`,
+          };
+        }
       },
       async list() {
         return (await readList(MONITORS_KEY)).flatMap((m) => {

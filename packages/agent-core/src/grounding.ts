@@ -292,9 +292,10 @@ export function groundListLinks(obs: Observation): ResultCandidate[] {
 /**
  * Generic URL shapes of profile / channel / author pages (a person or channel, not an item), and
  * labels of sponsored placements. A result that is one of these is ranked below real items — seen
- * live: a channel named "… Kannada Songs" outranked the songs.
+ * live: a channel named after the query outranked the videos.
  */
-const PROFILE_PATH = /^\/(?:@[^/]+\/?$|(?:channel|c|user|profile|profiles|author|authors|creator|people)\/)/i;
+const PROFILE_PATH =
+  /^\/(?:@[^/]+\/?$|(?:channel|c|user|profile|profiles|author|authors|creator|people)\/)/i;
 const SPONSORED_LABEL = /^(?:sponsored|ad|advertisement|promoted)\b|\b(?:sponsored|promoted)$/i;
 
 function itemPenalty(href: string, label: string, reasons: string[]): number {

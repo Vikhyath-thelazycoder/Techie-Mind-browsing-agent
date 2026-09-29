@@ -589,3 +589,69 @@
     padding: var(--tm-space-5) var(--tm-space-4);
   }
 }
+
+/* Shared small building blocks used by the Voice and Monitoring sections (Phase 7/8). */
+.tm-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tm-space-3);
+  flex-wrap: wrap;
+}
+
+.tm-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--tm-space-2);
+  margin-top: var(--tm-space-3);
+}
+
+.tm-btn-ghost {
+  padding: 6px 12px;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tm-notice {
+  margin: var(--tm-space-3) 0 0;
+  padding: var(--tm-space-2) var(--tm-space-3);
+  border-radius: var(--tm-radius-sm);
+  background: var(--tm-accent-soft);
+}
+
+.tm-bad-text {
+  color: var(--tm-danger);
+}
+
+.tm-monitor-list {
+  margin: var(--tm-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-monitor-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--tm-space-2);
+  padding: var(--tm-space-3) 0;
+  border-top: 1px solid var(--tm-border);
+}
+
+.tm-monitor-list > li > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
