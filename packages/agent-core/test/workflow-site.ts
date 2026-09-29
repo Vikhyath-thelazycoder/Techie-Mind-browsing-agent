@@ -219,6 +219,7 @@ export class WorkflowSite implements AgentHost {
     _t: number,
     action: Action,
     resolved?: { vaultToken: string; text: string },
+    file?: { fileRef: string; name: string; mime: string; base64: string },
   ): Promise<ExecuteResponse> {
     this.executed.push({ action, ...(resolved ? { resolved } : {}) });
     if (action.binding.documentId !== `doc-${this.doc}`)
@@ -248,6 +249,12 @@ export class WorkflowSite implements AgentHost {
     if (a.type === 'SELECT' && n) {
       this.values.set(n.nodeId, a.value);
       return this.#reply(action, 'executed', null, a.value);
+    }
+    if (a.type === 'UPLOAD' && n) {
+      if (n.inputType !== 'file' || file?.fileRef !== a.fileRef)
+        return this.#reply(action, 'rejected', 'TARGET_NOT_EDITABLE');
+      this.values.set(n.nodeId, file.name);
+      return this.#reply(action, 'executed', null, file.name);
     }
     if (a.type === 'SCROLL') {
       const max = Math.max(0, (this.page().height ?? 800) - 800);

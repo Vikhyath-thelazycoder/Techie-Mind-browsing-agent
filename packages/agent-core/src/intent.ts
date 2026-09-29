@@ -727,6 +727,11 @@ const PAGE_COMMANDS: Array<{ re: RegExp; action: string; param: (m: RegExpExecAr
       param: () => 'profile',
     },
     {
+      re: /^(?:upload|attach)\b(?!\s+(?:a\s+)?(?:video|photo|picture|image)s?\s+(?:on|to)\s+\S+\.\S+)(?:\s+(?:it|this|that|the\s+file|my\s+file|the\s+attachment|my\s+(?:resume|cv|document|photo)|this\s+file))?(?:\s+(?:here|to\s+(?:this|the)\s+(?:page|form|site)))?$/u,
+      action: 'upload_file',
+      param: () => 'file',
+    },
+    {
       re: /^(?:summari[sz]e|sum\s+up|give\s+(?:me\s+)?(?:a\s+)?(?:short\s+)?summary|tl;?\s?dr|what(?:\s+is|'s|’s|s)\s+(?:this|the)\s+(?:page|article)\s+about)\b.*$/u,
       action: 'summarize',
       param: () => 'page',
@@ -907,7 +912,7 @@ function resolveCanonical(request: string): ResolvedIntent {
       const kind =
         command.action === 'add_to_cart' || command.action === 'checkout'
           ? 'shopping'
-          : command.action === 'fill_form'
+          : command.action === 'fill_form' || command.action === 'upload_file'
             ? 'form_fill'
             : command.action === 'summarize'
               ? 'summarize'

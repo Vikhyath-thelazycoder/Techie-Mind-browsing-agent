@@ -10,11 +10,28 @@ import { RecoveryDecision } from './verification.js';
 /** Long-lived port name used by extension pages to run tasks and stream progress. */
 export const TASK_PORT = 'techie-mind/task';
 
+/** Largest file the user can attach for an upload (bytes). */
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * A file the user attached in the side panel (paperclip) for "upload it". It stays on this device:
+ * it goes only into the page's own file field, after the firewall approved that upload.
+ */
+export const FileAttachment = z.strictObject({
+  name: z.string().trim().min(1).max(255),
+  mime: z.string().max(128),
+  size: z.number().int().min(0).max(MAX_ATTACHMENT_BYTES),
+  /** File content, base64. */
+  base64: z.string().max(Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 8),
+});
+export type FileAttachment = z.infer<typeof FileAttachment>;
+
 export const RunTaskRequest = z.strictObject({
   type: z.literal('RUN_TASK'),
   text: z.string().trim().min(1).max(4000),
   mode: TaskMode,
   source: z.enum(['typed', 'voice', 'skill', 'rerun']),
+  attachment: FileAttachment.nullable().optional(),
 });
 export type RunTaskRequest = z.infer<typeof RunTaskRequest>;
 
@@ -99,6 +116,7 @@ export const GoalKind = z.enum([
   'checkout',
   'fill-form',
   'summarize',
+  'upload',
   'skill',
 ]);
 export type GoalKind = z.infer<typeof GoalKind>;

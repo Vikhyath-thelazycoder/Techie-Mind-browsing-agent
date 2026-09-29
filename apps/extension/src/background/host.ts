@@ -343,6 +343,7 @@ export class ExtensionHost implements AgentHost {
     tabId: number,
     action: Action,
     resolved?: { vaultToken: string; text: string },
+    file?: { fileRef: string; name: string; mime: string; base64: string },
   ): Promise<ExecuteResponse> {
     if (action.binding.tabId !== tabId) {
       // Cross-tab safety (spec §70): an action bound to another tab never runs here.
@@ -359,7 +360,12 @@ export class ExtensionHost implements AgentHost {
     }
     await this.#ensureContent(tabId);
     return ExecuteResponse.parse(
-      await this.#send(tabId, { type: 'EXECUTE', action, ...(resolved ? { resolved } : {}) }),
+      await this.#send(tabId, {
+        type: 'EXECUTE',
+        action,
+        ...(resolved ? { resolved } : {}),
+        ...(file ? { file } : {}),
+      }),
     );
   }
 

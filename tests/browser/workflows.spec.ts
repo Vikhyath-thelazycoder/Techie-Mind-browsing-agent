@@ -114,7 +114,8 @@ test.describe('Phase 5 workflows — real browser', () => {
     expect(values, JSON.stringify(run.result.output)).toMatchObject({
       fullname: SYNTHETIC_PII.name,
       email: SYNTHETIC_PII.email,
-      mobile: SYNTHETIC_PII.phone,
+      // The profile editor stores the number with its country code (+91 by default).
+      mobile: `+91 ${SYNTHETIC_PII.phone}`,
       address1: '12 MG Road',
       city: 'Bengaluru',
       state: 'Karnataka',

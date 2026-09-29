@@ -29,6 +29,7 @@ export type Goal =
   | { kind: 'checkout'; target: 'cart' | 'checkout' }
   | { kind: 'fill-form' }
   | { kind: 'summarize' }
+  | { kind: 'upload' }
   | { kind: 'skill'; id: SkillId; arg: string }
   | {
       kind: 'open-element';
@@ -56,6 +57,7 @@ const SUPPORTED_ACTIONS = new Set([
   'add_to_cart',
   'checkout',
   'fill_form',
+  'upload_file',
   'summarize',
 ]);
 
@@ -120,6 +122,7 @@ export function planGoals(profile: IntentProfile, target: Target, reuse = false)
     }),
     fill_form: () => ({ kind: 'fill-form' }),
     summarize: () => ({ kind: 'summarize' }),
+    upload_file: () => ({ kind: 'upload' }),
   };
   const pageGoal = page[action];
   if (pageGoal) {
@@ -205,6 +208,8 @@ export function describeGoal(goal: Goal): string {
       return 'Fill this form from your saved profile (no submit)';
     case 'summarize':
       return 'Summarize this page';
+    case 'upload':
+      return "Put your attached file into the page's upload field (no submit)";
     case 'skill':
       return `Skill: ${goal.id}${goal.arg ? ` (${goal.arg.slice(0, 80)})` : ''}`;
     case 'open-result': {

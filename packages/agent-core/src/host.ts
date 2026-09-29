@@ -132,6 +132,8 @@ export interface AgentHost {
     tabId: number,
     action: Action,
     resolved?: { vaultToken: string; text: string },
+    /** The user's attached file for an UPLOAD action (after the firewall allowed it). */
+    file?: { fileRef: string; name: string; mime: string; base64: string },
   ): Promise<ExecuteResponse>;
   probe(tabId: number, elementId: string | null): Promise<ProbeResponse | null>;
   /**

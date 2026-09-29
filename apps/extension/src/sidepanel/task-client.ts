@@ -19,6 +19,7 @@ import {
   TaskPortMessage,
   type AuditEvent,
   type CustomSkill,
+  type FileAttachment,
   type IntentProfile,
   type TaskMode,
   type TaskResult,
@@ -253,8 +254,17 @@ export function useTaskRunner(adapter: BrowserAdapter) {
   );
 
   const run = useCallback(
-    (text: string, mode: TaskMode, source: RunTaskRequest['source'] = 'typed') =>
-      start(text, RunTaskRequest.parse({ type: 'RUN_TASK', text, mode, source }), false),
+    (
+      text: string,
+      mode: TaskMode,
+      source: RunTaskRequest['source'] = 'typed',
+      attachment: FileAttachment | null = null,
+    ) =>
+      start(
+        text,
+        RunTaskRequest.parse({ type: 'RUN_TASK', text, mode, source, attachment }),
+        false,
+      ),
     [start],
   );
 

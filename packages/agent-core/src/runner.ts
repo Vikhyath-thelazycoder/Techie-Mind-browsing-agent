@@ -110,6 +110,8 @@ export interface RunnerDeps {
   intelligence?: Intelligence;
   /** The user's own instructions for skills whose output the local model writes (Settings → Skills). */
   skillInstructions?: Partial<Record<SkillId, string>>;
+  /** The file the user attached (paperclip) for an upload; stays on this device. */
+  attachment?: { fileRef: string; name: string; mime: string; size: number; base64: string } | null;
   /** Pause / stop requests from the user, read between steps — never halfway through an action. */
   control?: { readonly pause: boolean; readonly stop: boolean };
   /** Receives the saved state of a task that stopped for the human and can continue (spec §25). */
@@ -595,6 +597,7 @@ class TaskRun {
         now: this.#now(),
         vault: this.#vault,
         approvals: this.#approvals,
+        attachedFileRef: this.deps.attachment?.fileRef ?? null,
         ...(obs ? { observedAt: this.#observedAt.get(obs.observationId) ?? this.#now() } : {}),
       });
       if (!decision.allowed && decision.handover === 'confirmation') {
@@ -801,6 +804,18 @@ class TaskRun {
           versionAfter: 0,
           deferred: true,
         };
+      }
+      const file =
+        args.type === 'UPLOAD' && this.deps.attachment?.fileRef === args.fileRef
+          ? this.deps.attachment
+          : null;
+      if (file) {
+        return this.deps.host.execute(this.#tab, action, undefined, {
+          fileRef: file.fileRef,
+          name: file.name,
+          mime: file.mime,
+          base64: file.base64,
+        });
       }
       return token && value !== null
         ? this.deps.host.execute(this.#tab, action, { vaultToken: token, text: value })
@@ -1589,9 +1604,54 @@ class TaskRun {
         return this.#fillForm();
       case 'summarize':
         return this.#summarize();
+      case 'upload':
+        return this.#upload();
       case 'skill':
         return this.#skill(goal);
     }
+  }
+
+  /**
+   * "Upload it": put the file the user attached into the page's file field, through the firewall,
+   * and verify the field holds it. Nothing is submitted — sending the form stays the user's step.
+   */
+  async #upload() {
+    const file = this.deps.attachment;
+    if (!file) {
+      throw new HandoverError(
+        'Attach the file first with the paperclip in the side panel, then ask again.',
+        'policy',
+      );
+    }
+    const obs = await this.#observe();
+    const fields = obs.domNodes.filter(
+      (n) => n.tag === 'input' && n.inputType === 'file' && n.attributes['disabled'] === undefined,
+    );
+    if (fields.length === 0) {
+      throw new HandoverError('No file upload field was found on this page.', 'ambiguous');
+    }
+    // Prefer a visible field, then the first one in the page.
+    const field = fields.find((n) => n.visible) ?? fields[0]!;
+    this.#grounded('file upload field', field, 5, [
+      fields.length > 1 ? `first of ${fields.length} file fields` : 'the file field',
+    ]);
+    const { result } = await this.#execute(
+      obs,
+      field,
+      { type: 'UPLOAD', fileRef: file.fileRef },
+      `Upload "${file.name}"`,
+      { kind: 'field-value', description: `the field holds ${file.name}` },
+      0.8,
+    );
+    const ok = result.status === 'executed' && result.valueAfter === file.name;
+    return {
+      actionType: 'UPLOAD' as const,
+      target: describeNode(field),
+      verified: ok,
+      evidence: ok
+        ? `"${file.name}" (${Math.round(file.size / 1024)} KB) is in the file field — not submitted; send the form yourself`
+        : `the page did not take the file: ${result.message}`,
+    };
   }
 
   /** Items on the page, read in the page (generic extraction). */

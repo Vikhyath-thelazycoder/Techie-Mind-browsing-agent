@@ -78,6 +78,15 @@ export const ExecuteCommand = z.strictObject({
   resolved: z
     .strictObject({ vaultToken: z.string().max(40), text: z.string().max(2000) })
     .optional(),
+  /** The user's attached file for an UPLOAD action (matched by `fileRef`). */
+  file: z
+    .strictObject({
+      fileRef: z.string().max(128),
+      name: z.string().max(255),
+      mime: z.string().max(128),
+      base64: z.string().max(14_000_000),
+    })
+    .optional(),
 });
 
 export const ExecuteRejection = z.enum([

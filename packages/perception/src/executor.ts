@@ -42,6 +42,7 @@ const PAGE_ACTIONS = new Set([
   'HIGHLIGHT',
   'FOCUS',
   'HOVER',
+  'UPLOAD',
 ]);
 
 function respond(
@@ -167,6 +168,7 @@ export function executeAction(
   action: Action,
   ctx: PageContext,
   resolved?: { vaultToken: string; text: string },
+  file?: { fileRef: string; name: string; mime: string; base64: string },
 ): Execution {
   const { binding, args } = action;
   if (binding.documentId !== ctx.documentId) {
@@ -217,8 +219,11 @@ export function executeAction(
     return reject(ctx, action, 'TARGET_MISSING', `${args.type} needs a target`);
   }
 
+  // File fields are usually visually hidden behind a styled button; an UPLOAD may target them.
+  const hiddenFileField =
+    args.type === 'UPLOAD' && el?.localName === 'input' && (el as HTMLInputElement).type === 'file';
   if (el && args.type !== 'SCROLL' && args.type !== 'HIGHLIGHT') {
-    if (!isVisible(el)) {
+    if (!isVisible(el) && !hiddenFileField) {
       el.scrollIntoView({ block: 'center', inline: 'nearest' });
       if (!isVisible(el)) return reject(ctx, action, 'TARGET_HIDDEN', 'element is not visible');
     }
@@ -229,6 +234,36 @@ export function executeAction(
   }
 
   switch (args.type) {
+    case 'UPLOAD': {
+      const input = el as HTMLInputElement | null;
+      if (!input || input.localName !== 'input' || input.type !== 'file')
+        return reject(ctx, action, 'TARGET_NOT_EDITABLE', 'element is not a file field');
+      // Only the file the user attached for exactly this action.
+      if (!file || file.fileRef !== args.fileRef)
+        return reject(ctx, action, 'INVALID_ACTION', 'no attached file for this upload');
+      const bytes = Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0));
+      const transfer = new DataTransfer();
+      transfer.items.add(
+        new File([bytes], file.name, { type: file.mime || 'application/octet-stream' }),
+      );
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      const placed = input.files?.[0]?.name ?? null;
+      return placed === file.name
+        ? {
+            response: respond(
+              ctx,
+              action,
+              'executed',
+              null,
+              'file placed in the file field',
+              placed,
+            ),
+            deferred: null,
+          }
+        : reject(ctx, action, 'TARGET_NOT_EDITABLE', 'the page did not accept the file');
+    }
     case 'TYPE': {
       if (!el || !isEditable(el, computeRole(el)))
         return reject(ctx, action, 'TARGET_NOT_EDITABLE', 'element does not accept text');

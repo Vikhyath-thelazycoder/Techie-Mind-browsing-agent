@@ -93,8 +93,9 @@ test.describe('Chrome MV3 extension — real browser', () => {
     await page.setViewportSize({ width: 530, height: 1000 });
     await page.screenshot({ path: 'evidence/sidepanel-agent-530.png' });
 
-    await page.getByTestId('quick-summaries').click();
-    await expect(page.getByTestId('agent-notice')).toContainText('Phase 6');
+    // Summaries / Extract / Research start real tasks; "Private Run" explains the privacy default.
+    await page.getByTestId('quick-private').click();
+    await expect(page.getByTestId('agent-notice')).toContainText('private by default');
 
     await page.getByTestId('tab-history').click();
     await expect(page.getByTestId('history-view')).toBeVisible();

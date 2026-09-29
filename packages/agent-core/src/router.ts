@@ -79,6 +79,7 @@ const RESULT_ACTIONS = new Set([
   'checkout',
   'fill_form',
   'summarize',
+  'upload_file',
 ]);
 
 /** True when the decision depends on what the open page can do (needs one observation). */

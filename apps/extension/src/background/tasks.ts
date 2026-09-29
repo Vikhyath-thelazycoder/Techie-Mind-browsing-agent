@@ -3,6 +3,7 @@ import {
   resumeTask,
   runTask,
   type AgentHost,
+  type RunnerDeps,
   type TaskCheckpoint,
 } from '@techie-mind/agent-core';
 import { loadSkills } from '../shared/skills-store.js';
@@ -47,6 +48,18 @@ export function startTaskService(deps: {
   let running = false;
   /** Pause / stop flags of the running task, read by the runner between steps. */
   let control = { pause: false, stop: false };
+  /**
+   * Files attached for tasks waiting for the human (memory only, never stored): a resumed upload
+   * gets its file back; after a service-worker restart the user attaches it again.
+   */
+  const attachments = new Map<string, NonNullable<RunnerDeps['attachment']>>();
+  const keep = (attachment: RunnerDeps['attachment']) => (cp: TaskCheckpoint) => {
+    if (attachment) {
+      attachments.set(cp.task.taskId, attachment);
+      if (attachments.size > 5) attachments.delete(attachments.keys().next().value!);
+    }
+    void saveCheckpoint(deps.adapter, cp);
+  };
 
   return deps.adapter.onConnect(TASK_PORT, (port: Port) => {
     const post = (message: TaskPortMessage) => {
@@ -145,6 +158,8 @@ export function startTaskService(deps: {
     const settings = await loadSettings(deps.adapter);
     const logger = taskLogger(settings, post);
     const skills = await loadSkills(deps.adapter);
+    const attachment = attachments.get(taskId) ?? null;
+    attachments.delete(taskId);
     const result = await resumeTask(
       checkpoint,
       decision,
@@ -155,7 +170,8 @@ export function startTaskService(deps: {
         ...(deps.intelligence ? { intelligence: deps.intelligence(settings) } : {}),
         skillInstructions: skills.instructions,
         control,
-        onCheckpoint: (cp) => void saveCheckpoint(deps.adapter, cp),
+        attachment,
+        onCheckpoint: keep(attachment),
       },
       newTaskId(),
     );
@@ -171,6 +187,9 @@ export function startTaskService(deps: {
     const settings = await loadSettings(deps.adapter);
     const logger = taskLogger(settings, post);
     const skills = await loadSkills(deps.adapter);
+    const attachment: RunnerDeps['attachment'] = request.attachment
+      ? { fileRef: `file-${crypto.randomUUID()}`, ...request.attachment }
+      : null;
     const runOne = async (text: string): Promise<TaskResult> => {
       const task = Task.parse({
         taskId: newTaskId(),
@@ -191,7 +210,8 @@ export function startTaskService(deps: {
         ...(deps.intelligence ? { intelligence: deps.intelligence(settings) } : {}),
         skillInstructions: skills.instructions,
         control,
-        onCheckpoint: (cp) => void saveCheckpoint(deps.adapter, cp),
+        attachment,
+        onCheckpoint: keep(attachment),
       });
       await deps.audit?.flush();
       await appendHistory(deps.adapter, redactResult(result));
