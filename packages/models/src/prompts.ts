@@ -41,6 +41,34 @@ export const INTERPRET_SCHEMA = {
   required: ['kind', 'confidence', 'reason'],
 } as const;
 
+/**
+ * Indian-language requests are translated to English before any rule or model reads them, so
+ * "ಯುಟ್ಯೂಬ್ ಓಪನ್ ಮಾಡಿ ಕನ್ನಡ ಸಾಂಗ್ಸ್ ಪ್ಲೇ ಮಾಡು" becomes "open YouTube and play Kannada songs".
+ */
+export const TRANSLATE_SYSTEM = `Translate the user's request to a browser agent into plain, natural English. Output ONE JSON object: {"english": "..."}.
+
+Rules:
+- Translate the meaning, including command words (open, play, search, scroll, go back, under, cheapest) and common words (songs → songs, shoes → shoes).
+- Write website names, brands, product models, people, songs and film names in their usual English spelling (ಯುಟ್ಯೂಬ್ → YouTube, फ्लिपकार्ट → Flipkart). Keep language names as words: ಕನ್ನಡ → Kannada, हिंदी → Hindi.
+- Keep numbers and prices exactly (₹50,000 stays ₹50,000).
+- Keep the action exactly: search/find words (ಹುಡುಕು, ढूंढो, खोजो, தேடு, వెతుకు) mean "search for", never "buy". Translate colours and sizes exactly (ಕಪ್ಪು / काला = black, ಬಿಳಿ / सफेद = white, ನೀಲಿ / नीला = blue, ಕೆಂಪು / लाल = red).
+- Words like PERSON_001 or PHONE_001 are private placeholders: copy them unchanged.
+- Do not add anything the user did not say. If it is already English, return it unchanged.
+
+Word list: ಅಗ್ಗದ / ಕಡಿಮೆ ಬೆಲೆಯ / सबसे सस्ता / மலிவான / చౌకైన = cheapest · ತೆರೆ / ತೆಗಿ / खोलो / திற / తెరువు = open · ಹಾಕು / ಹಾಕಿ (music) / लगाओ / चलाओ / बजाओ = play · ಸಾರಾಂಶ / सारांश = summary · ಈ ಪುಟ / इस पेज = this page · ಹಿಂದೆ / वापस = back · ಕೆಳಗೆ / नीचे = down · ಕಾರ್ಟ್‌ಗೆ ಸೇರಿಸು / कार्ट में डालो = add to cart.
+
+Examples:
+ಫ್ಲಿಪ್‌ಕಾರ್ಟ್‌ನಲ್ಲಿ ಬಿಳಿ ಟಿ-ಶರ್ಟ್ ಹುಡುಕು → {"english": "search for white t-shirts on Flipkart"}
+अमेज़न पर नीले बैग खोजो → {"english": "search for blue bags on Amazon"}
+ಹಿಂದೆ ಹೋಗು → {"english": "go back"}
+सबसे सस्ता वाला खोलो → {"english": "open the cheapest one"}`;
+
+export const TRANSLATE_SCHEMA = {
+  type: 'object',
+  properties: { english: { type: 'string' } },
+  required: ['english'],
+} as const;
+
 export function interpretMessage(request: string, page: string, reading: string): string {
   return `User request: ${request}\n\nWhat simple rules understood (may be wrong): ${reading}\n\n${page}`;
 }

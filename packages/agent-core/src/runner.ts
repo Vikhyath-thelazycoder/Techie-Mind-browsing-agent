@@ -224,6 +224,8 @@ const STALE_CHECKS: Partial<Record<FirewallDecision['check'], ExecuteResponse['c
 };
 
 /** Settle budgets. Kept small: deterministic steps should be fast (spec §81). */
+/** Hindi, Kannada, Tamil or Telugu script: translate the request to English before reading it. */
+const INDIC_SCRIPT = /\p{Script=Devanagari}|\p{Script=Kannada}|\p{Script=Tamil}|\p{Script=Telugu}/u;
 const NAVIGATION_SETTLE_MS = 20_000;
 const ACTION_SETTLE_MS = 8_000;
 /** Extra, bounded wait when a page is still an empty document after one settle window. */
@@ -832,10 +834,62 @@ class TaskRun {
 
   // ── lifecycle ────────────────────────────────────────────────────────────────────────────
 
+  /** The request as rules and models read it: English, after translation when needed. */
+  #requestText = '';
+
+  /**
+   * Indian-language requests → English on the active model, before rules or other models read
+   * them ("ಯುಟ್ಯೂಬ್ ಓಪನ್ ಮಾಡಿ ಕನ್ನಡ ಸಾಂಗ್ಸ್ ಪ್ಲೇ ಮಾಡು" → "open YouTube and play Kannada songs").
+   * The user's language is kept for the reply. Without a model, the local word rules still apply.
+   */
+  async #toEnglish(original: IntentProfile): Promise<IntentProfile> {
+    const intelligence = this.deps.intelligence;
+    const indic = INDIC_SCRIPT.test(this.task.text);
+    const unsure = needsModel(original);
+    // The word rules fully understood it and left no Indian-script words to type: exact and instant.
+    const rulesDone =
+      !unsure && !INDIC_SCRIPT.test(`${original.query ?? ''} ${original.siteName ?? ''}`);
+    if (!intelligence?.translate || rulesDone || (!indic && original.language === 'en')) {
+      return original;
+    }
+    if (!indic && !unsure) return original;
+    const { text: modelText } = redactText(this.task.text, this.#vault);
+    const answer = await this.#timed('model', () =>
+      intelligence.translate!({
+        taskId: this.task.taskId,
+        text: modelText,
+        intent: { ...original, query: null, siteName: null, entities: [], constraints: [] },
+      }),
+    );
+    this.#recordModel(answer.usage);
+    if (!answer.value) return original;
+    this.#emit('SYSTEM', `Translated to English: "${answer.value.slice(0, 200)}"`, {
+      translated: true,
+    });
+    // Placeholders stand for the user's own words: restore them locally.
+    this.#requestText = answer.value.replace(
+      /\b[A-Z]{2,24}_\d{3}\b/g,
+      (t) => this.#vault.resolve(t, { consume: false }) ?? t,
+    );
+    const english = resolveIntent(this.#requestText).profile;
+    // The rules saw a play verb (ಹಾಕು, चलाओ …) that the translation softened to "search".
+    const play = original.action === 'search_and_play' && english.action === 'search';
+    return {
+      ...english,
+      ...(play ? { intent: 'media_playback' as const, action: 'search_and_play' } : {}),
+      language: original.language,
+    };
+  }
+
   async run(): Promise<TaskResult> {
     this.#emit('TASK_STARTED', this.task.text, { source: this.task.source, mode: this.task.mode });
+    this.#requestText = this.task.text;
     try {
-      const code = await this.#timed('intent', async () => resolveIntent(this.task.text).profile);
+      const original = await this.#timed(
+        'intent',
+        async () => resolveIntent(this.task.text).profile,
+      );
+      const code = await this.#toEnglish(original);
       // Where to act — decided BEFORE any navigation, from the wording and the open tab.
       const context = await this.#timed('context', () => this.deps.host.currentContext());
       // Code first; only a reading code is unsure of goes to the model tiers.
@@ -1238,7 +1292,7 @@ class TaskRun {
       }
       return { profile: code };
     };
-    const chat = isSmallTalk(this.task.text);
+    const chat = isSmallTalk(this.#requestText);
     if (!chat && !needsModel(code)) return { profile: code };
     if (!intelligence) {
       if (chat) {
@@ -1253,7 +1307,7 @@ class TaskRun {
       return fallback('');
     }
 
-    const { text: modelText } = redactText(this.task.text, this.#vault);
+    const { text: modelText } = redactText(this.#requestText, this.#vault);
     // What models see of the code's reading: its text fields redacted like the request, and no
     // entities/constraints (their `value` fields are never sent — the gate refuses such keys).
     const redact = (v: string | null) => (v ? redactText(v, this.#vault).text : null);
@@ -2129,7 +2183,7 @@ class TaskRun {
     const page = await this.#page();
     // "export the table …": a page's data table beats its links (live Wikipedia exported link
     // titles). Items are used when no table was asked for, or the page has none.
-    const wantsTable = /\btables?\b/i.test(this.task.text);
+    const wantsTable = /\btables?\b/i.test(this.#requestText);
     // "The table" is the page's main data table — the one with the most rows (a small summary box
     // comes first on many pages).
     const table = wantsTable

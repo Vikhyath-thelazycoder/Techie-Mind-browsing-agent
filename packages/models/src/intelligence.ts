@@ -18,6 +18,7 @@ import {
   parseInterpretation,
   parseLocation,
   parseSummary,
+  parseTranslation,
   whyInvalid,
 } from './parse.js';
 import {
@@ -29,6 +30,8 @@ import {
   locateMessage,
   SUMMARIZE_SCHEMA,
   summarizeSystem,
+  TRANSLATE_SCHEMA,
+  TRANSLATE_SYSTEM,
 } from './prompts.js';
 import { describePage, summarizeForModel } from './summary.js';
 import { TransportError, type ModelTransport } from './transport.js';
@@ -100,6 +103,18 @@ export interface Intelligence {
    * Local model only: page text never goes to a remote gateway for a summary.
    */
   summarize?(input: SummarizeInput): Promise<TierAnswer<string>>;
+  /**
+   * Translate an Indian-language request (already redacted with the task vault) into English, so
+   * rules and models read it like a typed English request.
+   */
+  translate?(input: TranslateInput): Promise<TierAnswer<string>>;
+}
+
+export interface TranslateInput {
+  taskId: string;
+  /** The user's request with personal data already replaced by vault tokens. */
+  text: string;
+  intent: IntentProfile;
 }
 
 export interface SummarizeInput {
@@ -404,6 +419,58 @@ export function createIntelligence(deps: IntelligenceDeps): Intelligence {
             value ? 'answered' : 'invalid',
             started,
             value ? 'summary' : 'not a summary',
+          ),
+          value,
+        };
+      } catch (error) {
+        const { outcome, reason } = outcomeOf(error);
+        return {
+          usage: usage(tier, modelId, 'plan-action', outcome, started, reason),
+          value: null,
+        };
+      }
+    },
+
+    async translate(input) {
+      const started = clock();
+      const modelId = active.modelId;
+      const check = await checkActive();
+      if (!check.ok) {
+        return {
+          usage: usage(tier, modelId, 'plan-action', 'unavailable', started, check.reason),
+          value: null,
+        };
+      }
+      try {
+        const req = request(
+          input.taskId,
+          tier,
+          modelId,
+          'plan-action',
+          input.text,
+          input.intent,
+          null,
+        );
+        const call = {
+          request: req,
+          model: modelId,
+          system: TRANSLATE_SYSTEM,
+          user: input.text,
+          schema: TRANSLATE_SCHEMA,
+          timeoutMs: MODEL_TIMEOUT_MS,
+        };
+        const content = active.local
+          ? await ollamaChat(deps.transport, active.endpoint!, call)
+          : await gatewayChat(deps.transport, active.endpoint!, call);
+        const value = parseTranslation(content);
+        return {
+          usage: usage(
+            tier,
+            modelId,
+            'plan-action',
+            value ? 'answered' : 'invalid',
+            started,
+            value ? 'translated to English' : 'not a translation',
           ),
           value,
         };

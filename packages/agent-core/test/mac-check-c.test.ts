@@ -1,4 +1,4 @@
-import { parseInterpretation } from '@techie-mind/models';
+import { parseInterpretation, parseTranslation } from '@techie-mind/models';
 import { describe, expect, it } from 'vitest';
 import { detectSkill, isSmallTalk, needsModel, resolveIntent } from '../src/index.js';
 
@@ -40,6 +40,23 @@ describe('Batch C Mac check — language, stock alerts, small talk', () => {
     const p = resolveIntent('Kannada songs play maadi').profile;
     expect(needsModel({ ...p, query: 'maadi Kannada songs' })).toBe(true);
     expect(needsModel({ ...p, language: 'en', query: 'maadi Kannada songs' })).toBe(false);
+  });
+
+  it('a translation must be one English JSON answer', () => {
+    expect(parseTranslation('{"english":"open YouTube and play Kannada songs"}')).toBe(
+      'open YouTube and play Kannada songs',
+    );
+    // Still in Kannada script → not a translation; extra keys or free text → refused.
+    expect(parseTranslation('{"english":"ಕನ್ನಡ songs"}')).toBeNull();
+    expect(parseTranslation('{"english":"play","note":"x"}')).toBeNull();
+    expect(parseTranslation('play songs')).toBeNull();
+    // What the translation turns into is read by the same rules as a typed English request.
+    const p = resolveIntent('open YouTube and play Kannada songs').profile;
+    expect([p.action, p.targetDomain, p.query]).toEqual([
+      'search_and_play',
+      'youtube.com',
+      'Kannada songs',
+    ]);
   });
 
   it('small talk is recognised and the model may answer with a chat reply', () => {

@@ -170,6 +170,18 @@ export function parseLocation(raw: unknown, width: number, height: number): Visu
 }
 
 /** A summary answer: one JSON object with a bounded "summary" string and nothing else. */
+/** `{"english": "..."}` → the English request; anything else (or still non-Latin text) → null. */
+export function parseTranslation(raw: unknown): string | null {
+  const o = asObject(raw);
+  if (!o || Object.keys(o).some((k) => k !== 'english')) return null;
+  const text = typeof o['english'] === 'string' ? o['english'].replace(/\s+/g, ' ').trim() : '';
+  if (text.length === 0 || text.length > 500) return null;
+  // A "translation" still in an Indian script did not translate.
+  if (/\p{Script=Devanagari}|\p{Script=Kannada}|\p{Script=Tamil}|\p{Script=Telugu}/u.test(text))
+    return null;
+  return text;
+}
+
 export function parseSummary(raw: unknown): string | null {
   const o = asObject(raw);
   if (!o || Object.keys(o).some((k) => k !== 'summary')) return null;

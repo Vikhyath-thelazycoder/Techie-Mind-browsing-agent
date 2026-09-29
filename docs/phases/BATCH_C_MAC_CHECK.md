@@ -75,6 +75,7 @@ Every fix has a unit test with the user's sentence (`packages/agent-core/test/ma
 | 14 | Laya timed out (2.5 s) | Adapter keeps the model warm; first answer 3 s → 34 ms |
 | 15 | Confusing no-page message | "No web page is open in this tab. Open the page first…" |
 | 16 | Confirmation link opened dead localhost | Setup doc: Site URL + table access notes |
+| 17 | Spoken Kannada "ಯುಟ್ಯೂಬ್ ಓಪನ್ ಮಾಡಿ ಕನ್ನಡ ಸಾಂಗ್ಸ್ ಪ್ಲೇ ಮಾಡು" typed the whole sentence into YouTube | Indian-script requests are **translated to English** on the local model first (redacted, ~0.5–1.5 s), unless the word rules already understood them fully. Checked on real Qwen: 10/10 sentences in KN/HI/TA/TE read correctly |
 
 ## 8. Problems for Batch D
 
