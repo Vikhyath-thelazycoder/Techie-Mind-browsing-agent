@@ -728,7 +728,7 @@ const PAGE_COMMANDS: Array<{ re: RegExp; action: string; param: (m: RegExpExecAr
       param: () => 'form',
     },
     {
-      re: /^(?:auto\s?fill|fill\s+(?:in|out|up)?)\b.*$|^(?:complete|fill)\s+(?:this|the)\s+form\b.*$/u,
+      re: /^(?:auto\s?fill|fill\s+(?:in|out|up)?)\b.*$|^(?:complete|fill)\s+(?:this|the)\s+form\b.*$|^(?:enter|type|put|add|insert|use)\s+(?:in\s+)?my\s+(?:phone|mobile|number|e-?mail|g-?mail|name|first\s+name|last\s+name|address|city|state|pin\s*code|pincode|pin|zip|details)\b.*$/u,
       action: 'fill_form',
       param: () => 'profile',
     },

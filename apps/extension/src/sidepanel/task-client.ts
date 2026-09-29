@@ -12,6 +12,7 @@ import {
 } from '@techie-mind/agent-core';
 import type { BrowserAdapter } from '@techie-mind/browser';
 import {
+  boundedWebUrl,
   ControlTaskRequest,
   ResumeTaskRequest,
   RunTaskRequest,
@@ -164,7 +165,7 @@ async function activeContext(adapter: BrowserAdapter): Promise<TabContext | null
     const url = new URL(tab.url);
     return {
       tabId: tab.id,
-      url: tab.url,
+      url: boundedWebUrl(tab.url),
       origin: url.origin,
       host: url.hostname,
       title: tab.title ?? '',

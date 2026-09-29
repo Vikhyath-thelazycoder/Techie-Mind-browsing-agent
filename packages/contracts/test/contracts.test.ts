@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AuditEvent,
+  boundedWebUrl,
   CONTRACTS,
   canTransition,
   HandoverState,
@@ -281,5 +282,17 @@ describe('AuditEvent', () => {
     expect(
       parseContract(AuditEvent, { ...event, data: { page: { html: '<div>…</div>' } } }).ok,
     ).toBe(false);
+  });
+});
+
+// Live on the Mac: Amazon's sign-in URL (long openid.return_to query) broke the observation.
+describe('boundedWebUrl', () => {
+  it('keeps normal URLs and shortens over-long ones to origin + path', () => {
+    const short = 'https://www.amazon.in/ap/signin?x=1';
+    expect(boundedWebUrl(short)).toBe(short);
+    const long = `https://www.amazon.in/ap/signin?openid.return_to=${'a'.repeat(3000)}#frag`;
+    const bounded = boundedWebUrl(long);
+    expect(bounded).toBe('https://www.amazon.in/ap/signin');
+    expect(Observation.shape.url.safeParse(bounded).success).toBe(true);
   });
 });

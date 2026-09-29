@@ -36,6 +36,17 @@ export const WebUrl = z
     return url !== null && WEB_PROTOCOLS.has(url.protocol);
   }, 'must be an absolute http(s) URL');
 
+/**
+ * A page URL that fits the 2048-character contract limit. Sign-in pages (Amazon, Google) carry
+ * return-to queries far longer than that; the query and fragment are dropped, origin + path kept.
+ */
+export function boundedWebUrl(href: string): string {
+  if (href.length <= 2048) return href;
+  const url = parseUrl(href);
+  if (!url) return href.slice(0, 2048);
+  return `${url.origin}${url.pathname}`.slice(0, 2048);
+}
+
 /** Serialized origin such as "https://www.youtube.com" (no path, no trailing slash). */
 export const Origin = z
   .string()

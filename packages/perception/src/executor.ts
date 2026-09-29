@@ -1,4 +1,5 @@
 import {
+  boundedWebUrl,
   elementFingerprint,
   TARGETED_ACTIONS,
   type Action,
@@ -414,7 +415,7 @@ export function probePage(ctx: PageContext, elementId: string | null): ProbeResp
   const primary = primaryMedia(ctx.doc);
   return {
     type: 'PROBE_RESULT',
-    url: ctx.doc.location.href.slice(0, 2048),
+    url: boundedWebUrl(ctx.doc.location.href),
     origin: ctx.doc.location.origin,
     title: ctx.doc.title.slice(0, 512),
     documentId: ctx.documentId,

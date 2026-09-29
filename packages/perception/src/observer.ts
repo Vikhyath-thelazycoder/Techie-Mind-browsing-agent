@@ -1,4 +1,5 @@
 import {
+  boundedWebUrl,
   DERIVED_ATTR,
   type AccessibilityNode,
   type DOMNode,
@@ -265,7 +266,7 @@ export function observeDocument(doc: Document, opts: ObserveOptions): Observatio
     });
 
   const win = doc.defaultView;
-  const url = doc.location.href;
+  const url = boundedWebUrl(doc.location.href);
   return {
     observationId: opts.observationId,
     taskId: opts.taskId,

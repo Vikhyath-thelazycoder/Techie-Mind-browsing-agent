@@ -62,7 +62,7 @@ import type { AgentHost } from './host.js';
 import { isAmbiguous, isSmallTalk, judgeLaya, needsModel, profileFromModel } from './escalate.js';
 import { ELEMENT_ENTITY, ELEMENT_LABEL_ENTITY } from './plan.js';
 import { groundRegion, regionToPage, visionWorthTrying } from './vision.js';
-import { formFields, planField } from './forms.js';
+import { formFields, planField, requestedFields, targetPlans } from './forms.js';
 import { SKILL_ARG_ENTITY, SKILL_ENTITY } from './skills.js';
 import type { BrowserData } from './host.js';
 import { constraintsOf, resolveIntent, UNSUPPORTED_ENTITY } from './intent.js';
@@ -2180,7 +2180,16 @@ class TaskRun {
     const fields = formFields(obs.domNodes);
     if (fields.length === 0)
       throw new HandoverError('No form fields are visible on this page.', 'ambiguous');
-    const plans = fields.map((node) => planField(node, profile));
+    const all = fields.map((node) => planField(node, profile));
+    // "fill the phone number" fills only the phone number; "fill this form" fills everything.
+    const wanted = requestedFields(this.#requestText || this.task.text);
+    const plans = wanted ? targetPlans(fields, all, wanted, profile) : all;
+    if (wanted && plans.length === 0) {
+      throw new HandoverError(
+        `No field for your ${[...wanted].map((f) => f.replace(/([A-Z])/g, ' $1').toLowerCase()).join(' or ')} is visible on this page.`,
+        'ambiguous',
+      );
+    }
     const filled: string[] = [];
     const skipped: string[] = [];
     let current = obs;

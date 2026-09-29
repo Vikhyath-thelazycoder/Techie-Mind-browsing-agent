@@ -1,6 +1,6 @@
 import type { BookmarkEntry, BrowserData, SavedPage, TabEntry } from '@techie-mind/agent-core';
 import type { BrowserAdapter } from '@techie-mind/browser';
-import { Monitor } from '@techie-mind/contracts';
+import { boundedWebUrl, Monitor } from '@techie-mind/contracts';
 import { MonitoringClient } from '../shared/monitoring-client.js';
 
 /**
@@ -98,7 +98,7 @@ export function createBrowserData(api: BrowserDataApi, adapter: BrowserAdapter):
           .filter((t) => typeof t.id === 'number')
           .map((t): TabEntry => ({
             id: t.id!,
-            url: t.url ?? '',
+            url: boundedWebUrl(t.url ?? ''),
             title: (t.title ?? '').slice(0, 300),
             pinned: !!t.pinned,
             active: !!t.active,
