@@ -21,7 +21,35 @@ export type RunTaskRequest = z.infer<typeof RunTaskRequest>;
 /** Sent periodically by the page while a task runs so the MV3 service worker stays alive. */
 export const KeepAlive = z.strictObject({ type: z.literal('KEEPALIVE') });
 
-export const TaskPortRequest = z.discriminatedUnion('type', [RunTaskRequest, KeepAlive]);
+/**
+ * The user steering a running task (spec §26): pause at the next safe point (the task can be
+ * resumed), or stop it for good. Both take effect between steps — never halfway through an action.
+ */
+export const ControlTaskRequest = z.strictObject({
+  type: z.literal('CONTROL_TASK'),
+  action: z.enum(['pause', 'stop']),
+});
+export type ControlTaskRequest = z.infer<typeof ControlTaskRequest>;
+
+/**
+ * Continue a task that handed over (spec §25: HUMAN_REQUIRED → PAUSED → USER_COMPLETED → RESUME).
+ * `continue` — the user did their part (OTP, CAPTCHA, sign-in) or un-paused;
+ * `approve` — the user confirms the one action the firewall asked about;
+ * `discard` — forget the paused task.
+ */
+export const ResumeTaskRequest = z.strictObject({
+  type: z.literal('RESUME_TASK'),
+  taskId: Id,
+  decision: z.enum(['continue', 'approve', 'discard']),
+});
+export type ResumeTaskRequest = z.infer<typeof ResumeTaskRequest>;
+
+export const TaskPortRequest = z.discriminatedUnion('type', [
+  RunTaskRequest,
+  KeepAlive,
+  ControlTaskRequest,
+  ResumeTaskRequest,
+]);
 export type TaskPortRequest = z.infer<typeof TaskPortRequest>;
 
 /** Storage key for task history (TaskResult[], newest first). */
@@ -190,6 +218,33 @@ export const PrivacySummary = z.strictObject({
 });
 export type PrivacySummary = z.infer<typeof PrivacySummary>;
 
+/** Why a task stopped for the human, what they must do, and whether it can continue (spec §26). */
+export const HandoverReason = z.enum([
+  'otp',
+  'captcha',
+  'login',
+  'payment',
+  'confirmation',
+  'paused',
+  'other',
+]);
+export type HandoverReason = z.infer<typeof HandoverReason>;
+
+export const HandoverInfo = z.strictObject({
+  reason: HandoverReason,
+  /** WHY IT STOPPED. */
+  why: ShortText,
+  /** WHAT THE USER NEEDS TO DO. */
+  userAction: ShortText,
+  /** WHEN IT CAN RESUME: true = after the user acts, the task continues where it stopped. */
+  resumable: z.boolean(),
+  /** The action the user is asked to approve (confirmation only). */
+  approval: z.string().max(300).nullable().default(null),
+  /** A resumable task is kept this long; afterwards it must be started again. */
+  expiresAt: Timestamp.nullable(),
+});
+export type HandoverInfo = z.infer<typeof HandoverInfo>;
+
 export const TaskResult = z.strictObject({
   taskId: Id,
   text: z.string().max(4000),
@@ -202,6 +257,8 @@ export const TaskResult = z.strictObject({
   models: z.array(ModelUsage).max(20).default([]),
   /** What the task produced for the user (Phase 5/6); null when it only acted. */
   output: TaskOutput.nullable().default(null),
+  /** Set when the task stopped for the human (HUMAN_REQUIRED / PAUSED). */
+  handover: HandoverInfo.nullable().default(null),
   steps: z.array(StepReport).max(50),
   timings: StageTimings,
   tabId: z.number().int().nonnegative().nullable(),

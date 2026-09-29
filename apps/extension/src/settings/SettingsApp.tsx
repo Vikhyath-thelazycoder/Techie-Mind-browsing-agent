@@ -207,6 +207,7 @@ function ModelsSection({ adapter, settings }: SectionProps) {
   });
   const [provider, setProvider] = useState(settings.model.activeProvider);
   const [voice, setVoice] = useState(settings.voice);
+  const [language, setLanguage] = useState(settings.language.preferredInputLanguage);
   const { state, save } = useSaver(adapter, settings);
   const active = resolveActiveModel(settings);
 
@@ -219,6 +220,7 @@ function ModelsSection({ adapter, settings }: SectionProps) {
         openaiCompatible: { endpoint: gateway.endpoint.trim() || null, model: gateway.model },
       },
       voice,
+      language: { preferredInputLanguage: language },
     });
 
   return (
@@ -367,13 +369,79 @@ function ModelsSection({ adapter, settings }: SectionProps) {
         <Card
           icon="mic"
           title="Voice Input & Spoken Output"
-          subtitle="Stored now; voice capture and speech output are implemented in Phase 7."
+          subtitle="Speak a request in English, Hindi, Kannada, Tamil or Telugu; it runs exactly like a typed one."
         >
-          <Field label="Recognition Engine" htmlFor="stt">
-            <select id="stt" class="tm-text" value={voice.sttEngine} disabled>
-              <option value="web-speech">Browser Web Speech API</option>
+          <Field
+            label="Recognition Engine"
+            htmlFor="stt"
+            hint={
+              voice.sttEngine === 'local-whisper'
+                ? 'Audio goes only to a whisper.cpp server on this computer (see docs/VOICE.md).'
+                : 'Chrome sends your audio to Google to recognize it. Only used after you agree below.'
+            }
+          >
+            <select
+              id="stt"
+              class="tm-text"
+              data-testid="stt-engine"
+              value={voice.sttEngine}
+              onChange={(e) =>
+                setVoice({
+                  ...voice,
+                  sttEngine: inputValue(e) as Settings['voice']['sttEngine'],
+                })
+              }
+            >
+              <option value="local-whisper">Local Whisper (private, on this computer)</option>
+              <option value="web-speech">Chrome Web Speech (audio sent to Google)</option>
             </select>
           </Field>
+          {voice.sttEngine === 'local-whisper' ? (
+            <Field
+              label="Local Whisper URL"
+              htmlFor="stt-url"
+              hint="whisper.cpp server: ./build/bin/whisper-server -m models/ggml-small.bin --port 8178 --convert. Loopback only."
+            >
+              <input
+                id="stt-url"
+                class="tm-text"
+                data-testid="stt-url"
+                value={voice.localSttUrl}
+                onInput={(e) => setVoice({ ...voice, localSttUrl: inputValue(e) })}
+              />
+            </Field>
+          ) : (
+            <label class="tm-check">
+              <input
+                type="checkbox"
+                data-testid="web-speech-consent"
+                checked={voice.webSpeechConsent}
+                onChange={(e) =>
+                  setVoice({ ...voice, webSpeechConsent: (e.target as HTMLInputElement).checked })
+                }
+              />
+              I agree that Chrome sends my voice recordings to Google for recognition
+            </label>
+          )}
+          <Field
+            label="Voice Language"
+            htmlFor="voice-lang"
+            hint="Also switchable with the language button next to the mic."
+          >
+            <select
+              id="voice-lang"
+              class="tm-text"
+              value={language}
+              onChange={(e) => setLanguage(inputValue(e) as Settings['language']['preferredInputLanguage'])}
+            >
+              <option value="en">English</option>
+              <option value="hi">Hindi</option>
+              <option value="kn">Kannada</option>
+              <option value="ta">Tamil</option>
+              <option value="te">Telugu</option>
+            </select>
+          </Field>
+          <MicrophoneAccess />
           <label class="tm-check">
             <input
               type="checkbox"
@@ -759,5 +827,41 @@ function AboutSection({ adapter }: { adapter: BrowserAdapter }) {
         </div>
       </Card>
     </>
+  );
+}
+
+/**
+ * The side panel cannot show Chrome's microphone prompt, so access is granted once here, on an
+ * extension page; the permission then covers the side panel too.
+ */
+function MicrophoneAccess() {
+  const [status, setStatus] = useState<string | null>(null);
+  const allow = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setStatus('Microphone allowed. You can use the mic in the side panel now.');
+    } catch {
+      setStatus(
+        'Microphone was blocked. Allow it in Chrome (address bar → site settings for this extension), then try again.',
+      );
+    }
+  };
+  return (
+    <div class="tm-field">
+      <button
+        type="button"
+        class="tm-btn-primary"
+        data-testid="allow-microphone"
+        onClick={() => void allow()}
+      >
+        Allow microphone
+      </button>
+      {status ? (
+        <p class="tm-muted" role="status" data-testid="microphone-status">
+          {status}
+        </p>
+      ) : null}
+    </div>
   );
 }

@@ -10,6 +10,8 @@ import {
 } from '@techie-mind/agent-core';
 import type { BrowserAdapter } from '@techie-mind/browser';
 import {
+  ControlTaskRequest,
+  ResumeTaskRequest,
   RunTaskRequest,
   TASK_PORT,
   TaskPortMessage,
@@ -161,6 +163,7 @@ const IDLE: RunState = {
 export function useTaskRunner(adapter: BrowserAdapter) {
   const [state, setState] = useState<RunState>(IDLE);
   const cleanup = useRef<(() => void) | null>(null);
+  const portRef = useRef<ReturnType<BrowserAdapter['connect']> | null>(null);
 
   const reset = useCallback(() => {
     cleanup.current?.();
@@ -182,11 +185,18 @@ export function useTaskRunner(adapter: BrowserAdapter) {
     [adapter],
   );
 
-  const run = useCallback(
-    (text: string, mode: TaskMode, source: RunTaskRequest['source'] = 'typed') => {
+  /** Open a task port, send one request, and stream the task's events and result into state. */
+  const start = useCallback(
+    (text: string, request: RunTaskRequest | ResumeTaskRequest, keepEvents: boolean) => {
       cleanup.current?.();
-      setState({ ...IDLE, phase: 'running', text });
+      setState((s) => ({
+        ...IDLE,
+        phase: 'running',
+        text,
+        events: keepEvents ? s.events : [],
+      }));
       const port = adapter.connect(TASK_PORT);
+      portRef.current = port;
       const keepAlive = setInterval(() => port.post({ type: 'KEEPALIVE' }), KEEPALIVE_MS);
       let finished = false;
       const stop = () => {
@@ -196,6 +206,7 @@ export function useTaskRunner(adapter: BrowserAdapter) {
       cleanup.current = () => {
         stop();
         port.disconnect();
+        if (portRef.current === port) portRef.current = null;
       };
       port.onMessage((raw) => {
         const message = TaskPortMessage.safeParse(raw);
@@ -217,10 +228,37 @@ export function useTaskRunner(adapter: BrowserAdapter) {
           setState((s) => ({ ...s, phase: 'done', error: 'Lost connection to the agent.' }));
         }
       });
-      port.post(RunTaskRequest.parse({ type: 'RUN_TASK', text, mode, source }));
+      port.post(request);
     },
     [adapter],
   );
 
-  return { state, preview, run, reset };
+  const run = useCallback(
+    (text: string, mode: TaskMode, source: RunTaskRequest['source'] = 'typed') =>
+      start(text, RunTaskRequest.parse({ type: 'RUN_TASK', text, mode, source }), false),
+    [start],
+  );
+
+  /** Pause or stop the running task; it takes effect before the agent's next step. */
+  const control = useCallback((action: ControlTaskRequest['action']) => {
+    portRef.current?.post(ControlTaskRequest.parse({ type: 'CONTROL_TASK', action }));
+  }, []);
+
+  /** Continue (or approve / discard) a task that stopped for you. */
+  const resume = useCallback(
+    (taskId: string, decision: ResumeTaskRequest['decision']) => {
+      const request = ResumeTaskRequest.parse({ type: 'RESUME_TASK', taskId, decision });
+      if (decision === 'discard') {
+        const port = adapter.connect(TASK_PORT);
+        port.post(request);
+        setTimeout(() => port.disconnect(), 500);
+        setState((s) => ({ ...s, result: s.result ? { ...s.result, handover: null } : null }));
+        return;
+      }
+      start(state.text, request, true);
+    },
+    [adapter, start, state.text],
+  );
+
+  return { state, preview, run, reset, control, resume };
 }

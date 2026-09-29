@@ -99,6 +99,14 @@ export const KNOWN_SITES: readonly SiteEntry[] = [
     category: 'video',
   },
   {
+    id: 'duckduckgo',
+    name: 'DuckDuckGo',
+    domain: 'duckduckgo.com',
+    homeUrl: 'https://duckduckgo.com/',
+    aliases: ['duckduckgo', 'duck duck go', 'ddg'],
+    category: 'search',
+  },
+  {
     id: 'spotify',
     name: 'Spotify',
     domain: 'spotify.com',
@@ -112,6 +120,8 @@ export const KNOWN_SITES: readonly SiteEntry[] = [
 export const DEFAULT_MEDIA_SITE = 'youtube';
 /** Fallback for searches that name no site (spec §47: Google is a fallback, not the default). */
 export const DEFAULT_SEARCH_SITE = 'google';
+/** Second web search for research when the first one asks automated browsers for a human check. */
+export const FALLBACK_SEARCH_SITE = 'duckduckgo';
 
 export function siteById(id: string): SiteEntry | undefined {
   return KNOWN_SITES.find((s) => s.id === id);

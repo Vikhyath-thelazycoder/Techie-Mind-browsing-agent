@@ -53,6 +53,12 @@ export interface FirewallContext {
   vault?: { has(token: string): boolean; kindOf?(token: string): string | null } | null;
   /** Oldest acceptable observation. */
   maxObservationAgeMs?: number;
+  /**
+   * Actions the user explicitly approved after a confirmation handover (see `approvalKey`). An
+   * approval only lifts the confirmation step for that exact control on that site — payment, OTP,
+   * CAPTCHA and every earlier check still apply.
+   */
+  approvals?: ReadonlySet<string>;
   /** When the runtime received the observation (its own clock); defaults to observation.createdAt. */
   observedAt?: number;
 }
@@ -284,7 +290,11 @@ export class ActionFirewall {
     }
     const userRequested =
       action.args.type === 'NAVIGATE' || (action.args.type === 'TYPE' && risk.level === 'LOW');
-    if (!userRequested && atLeast(risk.level, RISK_OF_SETTING[ctx.confirmAt])) {
+    const approved =
+      ctx.approvals !== undefined &&
+      ctx.approvals.size > 0 &&
+      ctx.approvals.has(approvalKey(action, target, ctx.observation?.url ?? null));
+    if (!userRequested && !approved && atLeast(risk.level, RISK_OF_SETTING[ctx.confirmAt])) {
       return deny(
         'authorization',
         `${risk.reasons.join('; ')} — needs your confirmation`,
@@ -301,4 +311,24 @@ export class ActionFirewall {
       handover: null,
     };
   }
+}
+
+/**
+ * Identity of an action for a one-time user approval: action type, site and the control's
+ * accessible name. It survives a page reload (element ids do not) but never covers another control,
+ * another site or another kind of action.
+ */
+export function approvalKey(
+  action: Action,
+  target: Pick<DOMNode, 'name' | 'role'> | null,
+  pageUrl: string | null,
+): string {
+  let origin = '';
+  try {
+    origin = pageUrl ? new URL(pageUrl).origin : '';
+  } catch {
+    origin = '';
+  }
+  const name = (target?.name ?? '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
+  return `${action.args.type}|${origin}|${target?.role ?? ''}|${name}`;
 }

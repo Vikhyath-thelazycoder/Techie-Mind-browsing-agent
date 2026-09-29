@@ -22,6 +22,8 @@ import {
   type ProbeResponse,
   type StageTimings,
   type StepReport,
+  type HandoverInfo,
+  type HandoverReason,
   type Task,
   type TaskStatus,
   type WebsiteProbe,
@@ -38,7 +40,12 @@ function safePath(url: string): string {
     return '/';
   }
 }
-import { ActionFirewall, scanInjection, type FirewallDecision } from '@techie-mind/security';
+import {
+  ActionFirewall,
+  approvalKey,
+  scanInjection,
+  type FirewallDecision,
+} from '@techie-mind/security';
 import type { Logger } from '@techie-mind/telemetry';
 import { bindAction, bindNavigation } from './binding.js';
 import {
@@ -65,7 +72,13 @@ import {
   type ContextFit,
   type TabContext,
 } from './router.js';
-import { DEFAULT_SEARCH_SITE, hostMatchesDomain, siteById, siteForDomain } from './sites.js';
+import {
+  DEFAULT_SEARCH_SITE,
+  FALLBACK_SEARCH_SITE,
+  hostMatchesDomain,
+  siteById,
+  siteForDomain,
+} from './sites.js';
 import {
   challengeMessage,
   fieldHoldsQuery,
@@ -97,6 +110,84 @@ export interface RunnerDeps {
   intelligence?: Intelligence;
   /** The user's own instructions for skills whose output the local model writes (Settings → Skills). */
   skillInstructions?: Partial<Record<SkillId, string>>;
+  /** Pause / stop requests from the user, read between steps — never halfway through an action. */
+  control?: { readonly pause: boolean; readonly stop: boolean };
+  /** Receives the saved state of a task that stopped for the human and can continue (spec §25). */
+  onCheckpoint?: (checkpoint: TaskCheckpoint) => void;
+}
+
+/**
+ * Everything needed to continue a task where it stopped for the human: the remaining plan, the tab,
+ * and the hosts the user's request allowed. Never holds page values — the vault is not saved.
+ */
+export interface TaskCheckpoint {
+  task: Task;
+  intent: IntentProfile | null;
+  target: Target | null;
+  navigation: NavigationDecision | null;
+  tabId: number | null;
+  allowedHosts: string[];
+  goals: Goal[];
+  /** The goal that stopped (it runs again on resume). */
+  goalIndex: number;
+  reason: HandoverReason;
+  /** The one action a confirmation handover asks the user to approve. */
+  approvalKey: string | null;
+  /** Approvals already given earlier in this task. */
+  approvals: string[];
+  steps: StepReport[];
+  output: TaskOutput | null;
+  models: ModelUsage[];
+  expiresAt: number;
+}
+
+/** A task stopped for the human is kept this long (spec §26: WHEN IT CAN RESUME). */
+export const RESUME_TTL_MS = 30 * 60_000;
+
+/** Handovers the task can continue after: the user does their part, then presses Continue. */
+const RESUMABLE = new Set<HandoverReason>(['otp', 'captcha', 'login', 'confirmation', 'paused']);
+
+const USER_ACTION: Record<HandoverReason, string> = {
+  otp: 'Enter the one-time code on the page yourself, then press Continue.',
+  captcha: 'Complete the human check on the page yourself, then press Continue.',
+  login: 'Sign in on the page yourself, then press Continue.',
+  payment: 'Payments are always yours: complete it yourself if you want to. The agent never pays.',
+  confirmation: 'Approve to let the agent do this one action, or Stop.',
+  paused: 'Press Continue when you want the agent to carry on, or Stop.',
+  other: 'Check the page, then tell the agent what to do next.',
+};
+
+function handoverInfo(
+  reason: HandoverReason,
+  why: string,
+  resumable: boolean,
+  expiresAt: number | null,
+  approval: string | null = null,
+): HandoverInfo {
+  return {
+    reason,
+    why: why.slice(0, 500),
+    userAction:
+      reason === 'confirmation' && approval
+        ? `Approve "${approval.slice(0, 120)}" to let the agent do it once, or Stop.`
+        : USER_ACTION[reason],
+    resumable,
+    approval: approval?.slice(0, 300) ?? null,
+    expiresAt,
+  };
+}
+
+function handoverReasonOf(decision: FirewallDecision): HandoverReason {
+  switch (decision.handover) {
+    case 'payment':
+    case 'otp':
+    case 'captcha':
+    case 'login':
+    case 'confirmation':
+      return decision.handover;
+    default:
+      return 'other';
+  }
 }
 
 type Stage =
@@ -135,6 +226,8 @@ const STALE_CHECKS: Partial<Record<FirewallDecision['check'], ExecuteResponse['c
 /** Settle budgets. Kept small: deterministic steps should be fast (spec §81). */
 const NAVIGATION_SETTLE_MS = 20_000;
 const ACTION_SETTLE_MS = 8_000;
+/** Extra, bounded wait when a page is still an empty document after one settle window. */
+const EMPTY_PAGE_WAIT_MS = 12_000;
 /** How long a clicked result may leave its tab unchanged before we look for a tab it opened. */
 const NEW_TAB_CHECK_MS = 2_000;
 
@@ -146,6 +239,43 @@ function largestTable<T extends { rows: unknown[] }>(
     undefined,
   );
 }
+
+/** Words of a title or query, lowercased ("iPhone 15 (128 GB)" → iphone, 15, 128, gb). */
+function termsOf(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length > 1 || /\d/.test(w));
+}
+
+/** Every query term appears as a whole word in the title. */
+function matchesAllTerms(title: string, query: string): boolean {
+  const words = new Set(termsOf(title));
+  return termsOf(query).every((t) => words.has(t));
+}
+
+/** Card noise that is not part of a product's name. */
+const TITLE_NOISE =
+  /\b(?:add to compare|not deliverable|currently unavailable|free delivery|sponsored|bestseller|limited time deal)\b/gi;
+const SPONSORED_TITLE = /^\s*(?:sponsored|ad|promoted)\b/i;
+
+/**
+ * Items fit to compare: sponsored placements dropped, card noise removed from titles, and a price
+ * of 0 treated as "no price" (seen live: "₹0 iOS Lock Screen iPhone 15").
+ */
+function cleanItems(items: ExtractedItem[]): ExtractedItem[] {
+  return items
+    .filter((i) => !SPONSORED_TITLE.test(i.title))
+    .map((i) => ({
+      ...i,
+      title: i.title.replace(TITLE_NOISE, ' ').replace(/\s+/g, ' ').trim() || i.title,
+      price: i.price !== null && i.price > 0 ? i.price : null,
+    }));
+}
+
+/** Controls that start the payment flow (the agent never presses them). */
+const CHECKOUT_LABEL =
+  /check\s?out|proceed\s+to\s+(?:buy|pay|payment|checkout)|place\s+(?:your\s+)?order|buy\s+now|pay\s+now|continue\s+to\s+payment/i;
 
 /** The tab still shows the same document at the same address (nothing happened there). */
 function samePage(a: ProbeResponse, b: ProbeResponse): boolean {
@@ -166,6 +296,8 @@ class HandoverError extends Error {
   constructor(
     message: string,
     readonly reason: 'ambiguous' | 'verification-failed' | 'policy',
+    /** What the human must do; null = nothing specific (the task cannot continue by itself). */
+    readonly kind: HandoverReason | null = null,
   ) {
     super(message);
   }
@@ -232,6 +364,19 @@ export async function runTask(task: Task, deps: RunnerDeps): Promise<TaskResult>
   return new TaskRun(task, deps).run();
 }
 
+/**
+ * Continue a task that stopped for the human, at the step that stopped. `approve` also lifts the
+ * confirmation for the one action the user was asked about; everything else is checked as before.
+ */
+export async function resumeTask(
+  checkpoint: TaskCheckpoint,
+  decision: 'continue' | 'approve',
+  deps: RunnerDeps,
+  taskId: string,
+): Promise<TaskResult> {
+  return new TaskRun({ ...checkpoint.task, taskId }, deps).resume(checkpoint, decision);
+}
+
 class TaskRun {
   readonly #now: () => number;
   readonly #clock: () => number;
@@ -289,6 +434,14 @@ class TaskRun {
   #output: TaskOutput | null = null;
   /** Which tier proposed the plan's actions (the firewall still authorizes each one). */
   #proposer: 'deterministic' | 'laya' | 'qwen' | 'api' | 'vision' = 'deterministic';
+  /** Why the task stopped for the human (shown to the user). */
+  #handover: HandoverInfo | null = null;
+  /** The kind of handover the last failed goal ended with. */
+  #lastHandoverKind: HandoverReason | null = null;
+  /** The action the firewall last asked the user to confirm. */
+  #pendingApproval: { key: string; label: string } | null = null;
+  /** Actions the user approved after a confirmation handover. */
+  readonly #approvals = new Set<string>();
 
   constructor(
     private readonly task: Task,
@@ -432,8 +585,21 @@ class TaskRun {
         confirmAt: this.deps.settings.agent.confirmAtRisk,
         now: this.#now(),
         vault: this.#vault,
+        approvals: this.#approvals,
         ...(obs ? { observedAt: this.#observedAt.get(obs.observationId) ?? this.#now() } : {}),
       });
+      if (!decision.allowed && decision.handover === 'confirmation') {
+        const b = action.binding.target;
+        const node =
+          b?.kind === 'element'
+            ? (obs?.domNodes.find((n) => n.nodeId === b.elementId) ?? null)
+            : null;
+        const label = (node?.name ?? node?.text ?? action.args.type).trim() || action.args.type;
+        this.#pendingApproval = {
+          key: approvalKey(action, node, obs?.url ?? live?.url ?? null),
+          label: `${action.args.type.toLowerCase()} "${label.slice(0, 100)}"`,
+        };
+      }
       if (decision.allowed) {
         this.#emit(
           'ACTION_ALLOWED',
@@ -497,7 +663,7 @@ class TaskRun {
               : decision.handover === 'confirmation'
                 ? `Stopped before ${what}: ${reason}.`
                 : `Blocked by the action firewall (${decision.check}): ${reason}.`;
-    throw new HandoverError(message, 'policy');
+    throw new HandoverError(message, 'policy', handoverReasonOf(decision));
   }
 
   async #openedTabs(): Promise<Set<number>> {
@@ -777,23 +943,130 @@ class TaskRun {
       const plan = planned;
 
       await ensureTab();
-      for (const goal of plan.goals) {
-        const report = await this.#achieve(goal);
-        this.#steps.push(report);
-        if (!report.verified) {
-          const handover = report.recovery.some((r) => r.strategy === 'handover');
-          this.#emit('HANDOVER_REQUIRED', report.evidence, { goal: goal.kind }, 'warn');
-          return this.#finish(handover ? 'HUMAN_REQUIRED' : 'FAILED', {
-            code: 'GOAL_NOT_VERIFIED',
-            message: `${describeGoal(goal)}: ${report.evidence}`,
-          });
-        }
-      }
+      const stopped = await this.#runGoals(plan.goals, 0);
+      if (stopped) return stopped;
       if (discovery) {
         const message = `Could not confirm an official website for "${decision.resolveName}". Search results are open so you can choose the right one.`;
         this.#emit('HANDOVER_REQUIRED', message, { reason: 'website-not-resolved' }, 'warn');
         return this.#finish('HUMAN_REQUIRED', { code: 'WEBSITE_NOT_RESOLVED', message });
       }
+      return this.#finish('COMPLETED', null);
+    } catch (error) {
+      const code = error instanceof BudgetError ? 'BUDGET_EXCEEDED' : 'INTERNAL';
+      const message = error instanceof Error ? error.message : String(error);
+      return this.#finish('FAILED', { code, message });
+    }
+  }
+
+  /**
+   * Run the plan from `from`. Pause and stop are honoured between steps. A goal that stops for the
+   * human either saves a checkpoint (OTP, CAPTCHA, sign-in, confirmation: the task continues after
+   * the user acts) or ends the task (payment: always the user's).
+   */
+  async #runGoals(goals: Goal[], from: number): Promise<TaskResult | null> {
+    for (let i = from; i < goals.length; i++) {
+      const goal = goals[i]!;
+      if (this.deps.control?.stop) {
+        this.#emit('SYSTEM', 'Stopped by you', { goal: goal.kind }, 'warn');
+        return this.#finish('CANCELLED', { code: 'STOPPED_BY_USER', message: 'You stopped the task.' });
+      }
+      if (this.deps.control?.pause) {
+        return this.#suspend('paused', `Paused before: ${describeGoal(goal)}`, goals, i);
+      }
+      const report = await this.#achieve(goal);
+      this.#steps.push(report);
+      if (!report.verified) {
+        const handover = report.recovery.some((r) => r.strategy === 'handover');
+        this.#emit('HANDOVER_REQUIRED', report.evidence, { goal: goal.kind }, 'warn');
+        const message = `${describeGoal(goal)}: ${report.evidence}`;
+        const kind = handover ? this.#lastHandoverKind : null;
+        if (kind && RESUMABLE.has(kind)) return this.#suspend(kind, message, goals, i);
+        if (kind) this.#handover = handoverInfo(kind, report.evidence, false, null);
+        return this.#finish(handover ? 'HUMAN_REQUIRED' : 'FAILED', {
+          code: 'GOAL_NOT_VERIFIED',
+          message,
+        });
+      }
+    }
+    return null;
+  }
+
+  /** Stop for the human and keep what is needed to continue (HUMAN_REQUIRED → PAUSED → RESUME). */
+  #suspend(reason: HandoverReason, why: string, goals: Goal[], index: number): TaskResult {
+    const expiresAt = this.#now() + RESUME_TTL_MS;
+    const approval = reason === 'confirmation' ? this.#pendingApproval : null;
+    this.#handover = handoverInfo(reason, why, true, expiresAt, approval?.label ?? null);
+    this.deps.onCheckpoint?.({
+      task: this.task,
+      intent: this.#intent,
+      target: this.#target,
+      navigation: this.#navigation,
+      tabId: this.#tabId,
+      allowedHosts: [...this.#allowedHosts],
+      goals,
+      goalIndex: index,
+      reason,
+      approvalKey: approval?.key ?? null,
+      approvals: [...this.#approvals],
+      steps: [...this.#steps],
+      output: this.#output,
+      models: [...this.#models],
+      expiresAt,
+    });
+    this.#emit(
+      'HANDOVER_REQUIRED',
+      `${this.#handover.why} — ${this.#handover.userAction}`,
+      { reason, resumable: true },
+      'warn',
+    );
+    return this.#finish(reason === 'paused' ? 'PAUSED' : 'HUMAN_REQUIRED', {
+      code: reason === 'paused' ? 'PAUSED' : 'HUMAN_REQUIRED',
+      message: why,
+    });
+  }
+
+  async resume(cp: TaskCheckpoint, decision: 'continue' | 'approve'): Promise<TaskResult> {
+    this.#emit('TASK_STARTED', `Continuing: ${this.task.text}`, {
+      source: this.task.source,
+      mode: this.task.mode,
+      resumed: true,
+      reason: cp.reason,
+    });
+    try {
+      if (this.#now() > cp.expiresAt) {
+        return this.#finish('FAILED', {
+          code: 'RESUME_EXPIRED',
+          message: 'This paused task expired. Ask again to start it fresh.',
+        });
+      }
+      this.#intent = cp.intent;
+      this.#target = cp.target;
+      this.#navigation = cp.navigation;
+      this.#tabId = cp.tabId;
+      this.#output = cp.output;
+      for (const host of cp.allowedHosts) this.#allowedHosts.add(host);
+      for (const key of cp.approvals) this.#approvals.add(key);
+      if (decision === 'approve' && cp.approvalKey) this.#approvals.add(cp.approvalKey);
+      this.#steps.push(...cp.steps.slice(-40));
+      this.#models.push(...cp.models.slice(-10));
+      if (this.#tabId !== null) {
+        const live = await this.deps.host.probe(this.#tabId, null).catch(() => null);
+        if (!live) {
+          return this.#finish('FAILED', {
+            code: 'TAB_CLOSED',
+            message: 'The tab the task was working in is closed or no longer shows a web page.',
+          });
+        }
+      }
+      this.#emit(
+        'SYSTEM',
+        decision === 'approve'
+          ? 'You approved the action — continuing'
+          : `Continuing after ${cp.reason === 'paused' ? 'the pause' : 'your step'}`,
+        { reason: cp.reason, goal: cp.goals[cp.goalIndex]?.kind ?? null },
+      );
+      const stopped = await this.#runGoals(cp.goals, cp.goalIndex);
+      if (stopped) return stopped;
       return this.#finish('COMPLETED', null);
     } catch (error) {
       const code = error instanceof BudgetError ? 'BUDGET_EXCEEDED' : 'INTERNAL';
@@ -815,6 +1088,11 @@ class TaskRun {
       privacy: this.#privacy,
       models: this.#models,
       output: this.#output,
+      handover:
+        this.#handover ??
+        (status === 'HUMAN_REQUIRED' && error
+          ? handoverInfo('other', error.message, false, null)
+          : null),
       steps: this.#steps,
       timings: this.#timings,
       tabId: this.#tabId,
@@ -847,6 +1125,7 @@ class TaskRun {
       }),
     );
     const base = { goal: goal.kind, description: describeGoal(goal) } as const;
+    this.#lastHandoverKind = null;
     try {
       const outcome = await this.#dispatch(goal, ladder);
       this.#verified(outcome.verified, outcome.evidence, goal);
@@ -858,6 +1137,7 @@ class TaskRun {
       };
     } catch (error) {
       if (error instanceof BudgetError) throw error;
+      if (error instanceof HandoverError) this.#lastHandoverKind = error.kind;
       const reason = error instanceof Error ? error.message : String(error);
       ladder.handover(reason, `goal-${goal.kind}`);
       this.#verified(false, reason, goal);
@@ -1172,7 +1452,7 @@ class TaskRun {
       after = adopted ?? (await this.#settle(before, ACTION_SETTLE_MS - NEW_TAB_CHECK_MS));
     }
     if (after && isChallengePage(after, null, null)) {
-      throw new HandoverError(challengeMessage(after.url), 'policy');
+      throw new HandoverError(challengeMessage(after.url), 'policy', 'captcha');
     }
     const verdict = goal.media
       ? await this.#verifyPlayback(before, after)
@@ -1220,7 +1500,7 @@ class TaskRun {
     const extract = this.deps.host.extractItems?.bind(this.deps.host);
     if (!extract) throw new HandoverError('Reading items is not available on this page.', 'policy');
     const reply = await this.#timed('grounding', () => extract(this.#tab));
-    return reply?.items ?? [];
+    return cleanItems(reply?.items ?? []);
   }
 
   async #itemsOutput(items: ExtractedItem[], total: number, title: string) {
@@ -1289,7 +1569,11 @@ class TaskRun {
 
   /** "open the cheapest one": pick by value from the items on the page, then open it once. */
   async #pickItem(goal: Extract<Goal, { kind: 'pick-item' }>) {
-    const items = await this.#readItems();
+    // Only items about what the page was searched for ("cheapest iPhone 15" ≠ the cheapest case).
+    const query = currentQuery(await this.#observe());
+    const all = await this.#readItems();
+    const relevant = query ? all.filter((i) => matchesAllTerms(i.title, query)) : all;
+    const items = relevant.length > 0 ? relevant : all;
     const candidates =
       goal.by === 'top-rated'
         ? items.filter((i) => i.rating !== null)
@@ -1483,9 +1767,17 @@ class TaskRun {
         /^(?:go to |view |my |your )?(?:cart|bag|basket)(?:\s*\(?\d+\)?)?$/i.test(label(n)),
     );
     const checkoutControl = obs.domNodes.find(
-      (n) => n.visible && n.interactive && /check\s?out/i.test(label(n)),
+      (n) => n.visible && n.interactive && CHECKOUT_LABEL.test(label(n)),
     );
-    const control = goal.target === 'checkout' ? (checkoutControl ?? cartLink) : cartLink;
+    // The financial boundary: the checkout control starts the payment flow — the user presses it.
+    if (goal.target === 'checkout' && checkoutControl) {
+      throw new HandoverError(
+        `"${label(checkoutControl).slice(0, 80)}" starts the payment — the agent stops here. Press it yourself if you want to buy.`,
+        'policy',
+        'payment',
+      );
+    }
+    const control = cartLink;
     if (!control)
       throw new HandoverError('No cart or checkout control is visible on this page.', 'ambiguous');
     this.#grounded('cart / checkout control', control, 5, ['named cart or checkout']);
@@ -1727,16 +2019,9 @@ class TaskRun {
     this.#emit('TARGET_ROUTED', `Skill: ${id}${context ? ` on ${context.host}` : ''}`, {
       skill: id,
     });
-    const report = await this.#achieve({ kind: 'skill', id, arg });
-    this.#steps.push(report);
-    if (!report.verified) {
-      const handover = report.recovery.some((r) => r.strategy === 'handover');
-      return this.#finish(handover ? 'HUMAN_REQUIRED' : 'FAILED', {
-        code: 'GOAL_NOT_VERIFIED',
-        message: `${describeGoal({ kind: 'skill', id, arg })}: ${report.evidence}`,
-      });
-    }
-    return this.#finish('COMPLETED', null);
+    // Same step loop as any plan: a human check inside a skill can be continued after the user acts.
+    const stopped = await this.#runGoals([{ kind: 'skill', id, arg }], 0);
+    return stopped ?? this.#finish('COMPLETED', null);
   }
 
   #data(): BrowserData {
@@ -1865,16 +2150,28 @@ class TaskRun {
   }
 
   /** The item on a results page that best matches the words of a product name, with a price. */
+  /** The task's tab shows a human-verification / challenge page. */
+  async #onChallenge(): Promise<boolean> {
+    const probe = await this.deps.host.probe(this.#tab, null).catch(() => null);
+    return !!probe && isChallengePage(probe, null);
+  }
+
   #bestMatch(items: ExtractedItem[], product: string): ExtractedItem | null {
-    const words = product
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter((w) => w.length > 1);
-    const need = Math.max(1, Math.ceil(words.length / 2));
+    const words = [...new Set(termsOf(product))];
+    // Short product names must match fully; numbers ("15") always must (an iPhone 17e is not one).
+    const need = words.length <= 3 ? words.length : Math.ceil(words.length * 0.6);
+    const numbers = words.filter((w) => /\d/.test(w));
     const scored = items
       .filter((i) => i.price !== null)
-      .map((i) => ({ i, score: words.filter((w) => i.title.toLowerCase().includes(w)).length }))
-      .filter((x) => x.score >= need);
+      .map((i) => {
+        const title = new Set(termsOf(i.title));
+        return {
+          i,
+          numbersOk: numbers.every((n) => title.has(n)),
+          score: words.filter((w) => title.has(w)).length,
+        };
+      })
+      .filter((x) => x.numbersOk && x.score >= Math.max(1, need));
     if (scored.length === 0) return null;
     const top = Math.max(...scored.map((x) => x.score));
     return scored.filter((x) => x.score === top).sort((a, b) => a.i.price! - b.i.price!)[0]!.i;
@@ -1990,8 +2287,24 @@ class TaskRun {
     const topic = (m ? m[1]! : arg).trim();
     const domain = m ? m[2]! : siteById(DEFAULT_SEARCH_SITE)?.domain;
     if (!topic || !domain) throw new HandoverError('Say what to research.', 'ambiguous');
-    if (!(await this.#visitAndSearch(domain, topic)))
-      return this.#done(false, `could not search ${domain} for "${topic}"`);
+    if (!(await this.#visitAndSearch(domain, topic))) {
+      const challenged = await this.#onChallenge();
+      // A web search that asks for a human check (seen live: Google's /sorry page) is retried once
+      // on another search engine — only when the user named no site.
+      const fallback = siteById(FALLBACK_SEARCH_SITE)?.domain;
+      const retried =
+        challenged && !m && fallback ? await this.#visitAndSearch(fallback, topic) : false;
+      if (!retried) {
+        if (challenged || (await this.#onChallenge())) {
+          throw new HandoverError(
+            `${domain} is asking for a human check. Complete it in the tab, then ask again.`,
+            'policy',
+            'captcha',
+          );
+        }
+        return this.#done(false, `could not search ${domain} for "${topic}"`);
+      }
+    }
     const results = (await this.#readItems()).slice(
       0,
       Math.min(3, this.deps.settings.research.maxSitesPerQuery),
@@ -2662,7 +2975,7 @@ class TaskRun {
       });
       const landed = await this.#outwaitChallenge(after, null);
       if (landed && isChallengePage(landed, null)) {
-        throw new HandoverError(challengeMessage(landed.url), 'policy');
+        throw new HandoverError(challengeMessage(landed.url), 'policy', 'captcha');
       }
       const verdict = await this.#timed('verification', async () =>
         verifyNavigation(goal.domain, landed),
@@ -2702,6 +3015,20 @@ class TaskRun {
           // first serve an empty, quiet challenge document (seen live: HTTP 202) and replace it.
           const seen = await this.deps.host.probe(this.#tab, null).catch(() => null);
           await this.#settle(seen, ACTION_SETTLE_MS);
+          continue;
+        }
+        // Still an (almost) empty document: a site check can take longer than one settle window
+        // (seen live on a large store). Wait once more, bounded, before giving up.
+        if (!ladder.used('refresh-empty') && obs.domNodes.filter((n) => n.visible).length < 8) {
+          ladder.decide(
+            2,
+            'refresh-observation',
+            'refresh-empty',
+            'the page is still empty (a site check may be running)',
+            `goal-search`,
+          );
+          const seen = await this.deps.host.probe(this.#tab, null).catch(() => null);
+          await this.#settle(seen, EMPTY_PAGE_WAIT_MS);
           continue;
         }
         if (!ladder.used('reveal')) {
@@ -2819,7 +3146,7 @@ class TaskRun {
       if (isChallengePage(settled, null, goal.query)) {
         const cleared = await this.#outwaitChallenge(settled, goal.query);
         if (!cleared || isChallengePage(cleared, null, goal.query)) {
-          throw new HandoverError(challengeMessage(settled.url), 'policy');
+          throw new HandoverError(challengeMessage(settled.url), 'policy', 'captcha');
         }
       }
       const verdict = await this.#awaitSearchResults(goal.query, before, obs, settled);
@@ -2948,7 +3275,7 @@ class TaskRun {
       if (after && isChallengePage(after, null, query)) {
         const cleared = await this.#outwaitChallenge(after, query);
         if (!cleared || isChallengePage(cleared, null, query)) {
-          throw new HandoverError(challengeMessage(after.url), 'policy');
+          throw new HandoverError(challengeMessage(after.url), 'policy', 'captcha');
         }
       }
       let verdict = goal.media

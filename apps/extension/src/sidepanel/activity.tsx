@@ -87,7 +87,83 @@ const STATUS_TEXT: Record<string, string> = {
   COMPLETED: 'Completed',
   FAILED: 'Failed',
   HUMAN_REQUIRED: 'Needs you',
+  PAUSED: 'Paused',
+  CANCELLED: 'Stopped',
 };
+
+const HANDOVER_TITLE: Record<string, string> = {
+  otp: 'One-time code needed',
+  captcha: 'Human check needed',
+  login: 'Sign-in needed',
+  payment: 'Payment is yours',
+  confirmation: 'Confirm this action',
+  paused: 'Paused',
+  other: 'Needs you',
+};
+
+/**
+ * Spec §26: WHY IT STOPPED, WHAT YOU NEED TO DO, WHEN IT CAN RESUME — and the buttons to do it.
+ * Continue re-checks the page and carries on at the step that stopped; nothing is skipped.
+ */
+function HandoverCard(props: {
+  result: TaskResult;
+  onResume?: ((taskId: string, decision: 'continue' | 'approve' | 'discard') => void) | undefined;
+}) {
+  const h = props.result.handover;
+  if (!h) return null;
+  const expires = h.expiresAt ? new Date(h.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <div class="tm-handover" data-testid="handover-card" data-reason={h.reason}>
+      <strong>{HANDOVER_TITLE[h.reason] ?? 'Needs you'}</strong>
+      <p>
+        <b>Why:</b> {h.why}
+      </p>
+      <p>
+        <b>Your part:</b> {h.userAction}
+      </p>
+      {h.resumable ? (
+        <>
+          <p class="tm-muted">
+            {expires ? `The agent keeps its place until ${expires}.` : 'The agent keeps its place.'}
+          </p>
+          {props.onResume ? (
+            <div class="tm-plan-actions">
+              <button
+                type="button"
+                class="tm-btn-ghost"
+                data-testid="handover-stop"
+                onClick={() => props.onResume?.(props.result.taskId, 'discard')}
+              >
+                Stop
+              </button>
+              {h.reason === 'confirmation' ? (
+                <button
+                  type="button"
+                  class="tm-btn-primary"
+                  data-testid="handover-approve"
+                  onClick={() => props.onResume?.(props.result.taskId, 'approve')}
+                >
+                  Approve once
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  class="tm-btn-primary"
+                  data-testid="handover-continue"
+                  onClick={() => props.onResume?.(props.result.taskId, 'continue')}
+                >
+                  {h.reason === 'paused' ? 'Continue' : "I've done it — continue"}
+                </button>
+              )}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <p class="tm-muted">The agent has stopped. You have control of the page.</p>
+      )}
+    </div>
+  );
+}
 
 /** Privacy status in one line — counts only (spec §56: never reveal the value). */
 function describePrivacy(p: NonNullable<TaskResult['privacy']>): string {
@@ -119,7 +195,13 @@ function describeNavigation(nav: NonNullable<TaskResult['navigation']>): string 
   }
 }
 
-export function ResultCard({ result }: { result: TaskResult }) {
+export function ResultCard({
+  result,
+  onResume,
+}: {
+  result: TaskResult;
+  onResume?: ((taskId: string, decision: 'continue' | 'approve' | 'discard') => void) | undefined;
+}) {
   const ok = result.status === 'COMPLETED';
   return (
     <section
@@ -159,7 +241,11 @@ export function ResultCard({ result }: { result: TaskResult }) {
         ))}
       </ul>
       {result.output ? <OutputView output={result.output} /> : null}
-      {result.error ? <p class="tm-plan-problem">{result.error.message}</p> : null}
+      {result.handover ? (
+        <HandoverCard result={result} onResume={onResume} />
+      ) : result.error ? (
+        <p class="tm-plan-problem">{result.error.message}</p>
+      ) : null}
     </section>
   );
 }
@@ -216,7 +302,13 @@ function OutputView({ output }: { output: NonNullable<TaskResult['output']> }) {
   );
 }
 
-export function RunView(props: { state: RunState; onRun: () => void; onCancel: () => void }) {
+export function RunView(props: {
+  state: RunState;
+  onRun: () => void;
+  onCancel: () => void;
+  onControl?: ((action: 'pause' | 'stop') => void) | undefined;
+  onResume?: ((taskId: string, decision: 'continue' | 'approve' | 'discard') => void) | undefined;
+}) {
   const { state } = props;
   return (
     <section class="tm-run" data-testid="run-view">
@@ -225,11 +317,33 @@ export function RunView(props: { state: RunState; onRun: () => void; onCancel: (
       ) : null}
       {state.events.length > 0 ? <Timeline events={state.events} /> : null}
       {state.phase === 'running' ? (
-        <p class="tm-muted" role="status">
-          Working…
-        </p>
+        <div class="tm-card-row" role="status">
+          <span class="tm-muted">Working…</span>
+          {props.onControl ? (
+            <span class="tm-plan-actions">
+              <button
+                type="button"
+                class="tm-btn-ghost"
+                data-testid="task-pause"
+                title="Pause before the next step (you can continue later)"
+                onClick={() => props.onControl?.('pause')}
+              >
+                Pause
+              </button>
+              <button
+                type="button"
+                class="tm-btn-ghost"
+                data-testid="task-stop"
+                title="Stop before the next step and take control"
+                onClick={() => props.onControl?.('stop')}
+              >
+                Stop
+              </button>
+            </span>
+          ) : null}
+        </div>
       ) : null}
-      {state.result ? <ResultCard result={state.result} /> : null}
+      {state.result ? <ResultCard result={state.result} onResume={props.onResume} /> : null}
       {state.error ? (
         <p class="tm-plan-problem" role="alert">
           {state.error}

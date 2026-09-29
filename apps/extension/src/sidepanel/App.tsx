@@ -1,12 +1,13 @@
 import type { BrowserAdapter } from '@techie-mind/browser';
 import { PRODUCT_NAME, resolveActiveModel, type Settings } from '@techie-mind/config';
 import { OpenSettingsRequest, type TaskMode } from '@techie-mind/contracts';
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
 import { saveSettings, useSettings } from '../ui/settings-store.js';
 import { RunView } from './activity.js';
 import { HistoryView } from './history.js';
 import { useTaskRunner } from './task-client.js';
+import { speakResult, useVoiceInput, VOICE_LANGUAGES } from './voice.js';
 
 type View = 'agent' | 'history' | 'privacy';
 
@@ -24,7 +25,16 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
   const runner = useTaskRunner(adapter);
 
   /** Ask before acting → show the plan first; act without asking → run immediately. */
-  const submit = (text: string, source: 'typed' | 'rerun' = 'typed') => {
+  // Spoken replies (Settings → Voice): say each task's outcome once, when it arrives.
+  const spoken = useRef<string | null>(null);
+  useEffect(() => {
+    const result = runner.state.result;
+    if (!result || !settings.voice.ttsEnabled || spoken.current === result.taskId) return;
+    spoken.current = result.taskId;
+    speakResult(result, settings.voice.voicePersona);
+  }, [runner.state.result, settings.voice.ttsEnabled, settings.voice.voicePersona]);
+
+  const submit = (text: string, source: 'typed' | 'rerun' | 'voice' = 'typed') => {
     const trimmed = text.trim();
     if (!trimmed || runner.state.phase === 'running') return;
     setView('agent');
@@ -119,6 +129,8 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
             state={runner.state}
             onRun={() => runner.run(runner.state.text, mode)}
             onCancel={runner.reset}
+            onControl={runner.control}
+            onResume={runner.resume}
           />
         ) : null}
         {view === 'history' ? (
@@ -137,6 +149,7 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
           onMode={setMode}
           running={runner.state.phase === 'running'}
           onSubmit={() => submit(draft)}
+          onVoice={(text) => submit(text, 'voice')}
         />
       ) : null}
     </div>
@@ -348,8 +361,25 @@ function Composer(props: {
   onMode: (mode: TaskMode) => void;
   running: boolean;
   onSubmit: () => void;
+  onVoice: (text: string) => void;
 }) {
   const { mode } = props;
+  const voice = useVoiceInput(props.settings, props.onVoice);
+  const language =
+    VOICE_LANGUAGES.find((l) => l.id === props.settings.language.preferredInputLanguage) ??
+    VOICE_LANGUAGES[0]!;
+  const nextLanguage = async () => {
+    const i = VOICE_LANGUAGES.findIndex((l) => l.id === language.id);
+    const next = VOICE_LANGUAGES[(i + 1) % VOICE_LANGUAGES.length]!;
+    await saveSettings(props.adapter, props.settings, {
+      language: { preferredInputLanguage: next.id },
+    });
+  };
+  const toggleSpeech = async () => {
+    const on = !props.settings.voice.ttsEnabled;
+    if (!on) globalThis.speechSynthesis?.cancel();
+    await saveSettings(props.adapter, props.settings, { voice: { ttsEnabled: on } });
+  };
   const [menu, setMenu] = useState<'mode' | 'autonomy' | null>(null);
   const autonomy = props.settings.agent.autonomy;
   const currentMode = MODES.find((m) => m.id === mode) ?? MODES[0]!;
@@ -414,6 +444,17 @@ function Composer(props: {
         }}
       />
 
+      {voice.error ? (
+        <p class="tm-notice" role="alert" data-testid="voice-error">
+          {voice.error}
+        </p>
+      ) : voice.phase !== 'idle' ? (
+        <p class="tm-notice" role="status" data-testid="voice-status">
+          {voice.phase === 'listening'
+            ? `Listening (${language.bcp47})… press the mic again when you finish.`
+            : 'Recognizing what you said…'}
+        </p>
+      ) : null}
       <div class="tm-composer-bar">
         <div class="tm-popover-anchor">
           <button
@@ -462,13 +503,46 @@ function Composer(props: {
           <button type="button" class="tm-icon-btn" disabled title="Attachments — Phase 6">
             <Icon name="paperclip" size={16} />
           </button>
-          <button type="button" class="tm-icon-btn tm-lang" disabled title="Language — Phase 7">
-            EN
+          <button
+            type="button"
+            class="tm-icon-btn tm-lang"
+            data-testid="voice-language"
+            title={`Voice language: ${language.bcp47} (click to change). Typed requests work in any language.`}
+            onClick={() => void nextLanguage()}
+          >
+            {language.label}
           </button>
-          <button type="button" class="tm-icon-btn" disabled title="Voice input — Phase 7">
+          <button
+            type="button"
+            class={`tm-icon-btn${voice.phase === 'listening' ? ' is-listening' : ''}`}
+            data-testid="voice-input"
+            aria-pressed={voice.phase === 'listening'}
+            disabled={props.running || voice.phase === 'transcribing'}
+            title={
+              voice.phase === 'listening'
+                ? 'Listening… click to finish'
+                : voice.phase === 'transcribing'
+                  ? 'Recognizing…'
+                  : props.settings.voice.sttEngine === 'local-whisper'
+                    ? 'Speak a request (local Whisper — audio stays on this computer)'
+                    : 'Speak a request (Chrome speech recognition)'
+            }
+            onClick={voice.toggle}
+          >
             <Icon name="mic" size={16} />
           </button>
-          <button type="button" class="tm-icon-btn" disabled title="Spoken responses — Phase 7">
+          <button
+            type="button"
+            class={`tm-icon-btn${props.settings.voice.ttsEnabled ? ' is-listening' : ''}`}
+            data-testid="voice-output"
+            aria-pressed={props.settings.voice.ttsEnabled}
+            title={
+              props.settings.voice.ttsEnabled
+                ? 'Spoken replies on (click to turn off)'
+                : 'Spoken replies off (click to turn on)'
+            }
+            onClick={() => void toggleSpeech()}
+          >
             <Icon name="volume" size={16} />
           </button>
           <button
