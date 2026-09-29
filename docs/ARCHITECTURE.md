@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 foundation and Phase 1 agent core implemented. Security/privacy enforcement and model routing are next (Phases 2–3).
 
-Source of truth: [TECHIE_MIND_SPEC.md](TECHIE_MIND_SPEC.md) and [master implementation plan.md](master%20implementation%20plan.md). This document describes what exists in the repository today.
+Source of truth: [TECHIE_MIND_SPEC.md](TECHIE_MIND_SPEC.md). This document describes what exists in the repository today.
 
 ## Core principle
 

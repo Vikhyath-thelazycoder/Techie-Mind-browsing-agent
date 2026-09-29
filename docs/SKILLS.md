@@ -81,7 +81,7 @@ The page follows the reference UI, "Skills & Injected Instructions".
 - `packages/agent-core/test/workflows.test.ts`: summaries and form filling (Phase 5).
 - `tests/browser/skills.spec.ts`: real Chromium with real bookmarks, tab groups and downloads, plus
   compare, research and walkthrough.
-- Gates: [phases/PHASE_6_GATES.md](phases/PHASE_6_GATES.md), `node scripts/verify/phase6.mjs all`.
+- Gates: `node scripts/verify/phase6.mjs all`.
 
 ## Not yet
 

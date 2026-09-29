@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Local page perception (runs in the page): DOM observation, accessibility projection, element registry, versioning.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

@@ -62,4 +62,3 @@
 13. Model availability is not checked (Phase 3).
 14. CI workflow exists but has not run on GitHub (no remote). Live-site tests are intentionally not in CI.
 15. Product name follows the spec ("Techie Mind"); screenshots say "TechyMind" — awaiting confirmation.
-16. `reference/UI_REFERENCE/Screenshot 2026-09-28 at 12.49.52 PM.png` contains personal data; keep `reference/` out of public repositories.

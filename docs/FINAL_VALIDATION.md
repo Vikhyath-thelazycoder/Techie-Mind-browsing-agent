@@ -4,9 +4,8 @@
 Definition of Done (spec §97). Every item says **how** it was verified:
 
 - **CI**: GitHub Actions on every PR (lint, typecheck, unit tests, build, real-Chromium tests).
-- **Mac A / B / C**: the user's real Chrome, real local models and real websites
-  (`docs/phases/BATCH_*_MAC_CHECK.md`).
-- **Pending (Mac D)**: new in Batch D; to be confirmed with `docs/phases/BATCH_D_CHECKLIST.md`.
+- **Mac A / B / C**: the user's real Chrome, real local models and real websites (internal Mac check reports).
+- **Pending (Mac D)**: new in Batch D; confirmed manually on the Mac.
 
 ## 1. Objective
 
@@ -35,8 +34,6 @@ Close out the product (Phase 9: the UI reflects the actual runtime) and validate
 - `packages/agent-core/test/batch-cd.test.ts`
 - `apps/backend/test/monitor-core.test.ts`
 - `docs/FINAL_VALIDATION.md` (this file)
-- `docs/phases/BATCH_D_REPORT.md`
-- `docs/phases/BATCH_D_CHECKLIST.md`
 
 ## 4. Files modified
 
@@ -119,7 +116,7 @@ Settings: models and voice, privacy, research, profile, skills, monitoring, expo
 |---|---|---|
 | Chrome extension works | ✅ | Mac A/B/C; CI real Chromium |
 | Firefox architecture works | ✅ architecture | Firefox build and `web-ext lint` in CI. Limits: no side panel API, tab groups or trusted click (see BROWSER_SUPPORT.md) |
-| Current UI preserved | ✅ | reference screenshots; evidence/sidepanel-*.png |
+| Current UI preserved | ✅ | UI screenshots from the real-Chromium tests (`evidence/sidepanel-*.png`) |
 | Settings work | ✅ | Mac C (settings screenshots) |
 | Privacy inspector works | 🟡 pending | new in Batch D; Mac D |
 | Local privacy filter works | ✅ | privacy unit and corpus metrics (evidence/privacy-metrics.json); Mac B screenshots painted |

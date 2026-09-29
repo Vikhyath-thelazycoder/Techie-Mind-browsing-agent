@@ -47,6 +47,7 @@ describe('manifest generator', () => {
       'bookmarks',
       'downloads',
       'tabGroups',
+      'nativeMessaging', // optional local helper that switches Laya / voice on and off
     ]);
     for (const m of [chrome, firefox]) {
       for (const p of m.permissions as string[]) expect(allowed.has(p), p).toBe(true);

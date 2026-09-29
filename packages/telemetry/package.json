@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Structured, masked, hash-chained logging and latency measurement.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

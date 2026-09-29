@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest a new task, skill or improvement
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: Describe the task in your own words, for example "compare train ticket prices".
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example sentences
+      description: How would you ask Techie Mind for it?
+      placeholder: |
+        find the cheapest bus from Bengaluru to Mysuru tomorrow
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and privacy
+      description: Does it involve payment, logins, personal data or sending something? What should stay with the human?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything else

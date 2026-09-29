@@ -34,7 +34,7 @@ Grounding outputs carry reasons (e.g. `type=search, inside search form, near top
 
 ## Validated on
 
-Local fixture sites reproducing real patterns (GET form with decoys; script-driven search without `<form>` behind a login overlay; collapsed search; re-mounting field; button-only submit; video site) and live youtube.com and flipkart.com — see phases/PHASE_1_REPORT.md.
+Local fixture sites reproducing real patterns (GET form with decoys; script-driven search without `<form>` behind a login overlay; collapsed search; re-mounting field; button-only submit; video site) and live youtube.com and flipkart.com (tests/browser and tests/live).
 
 ## Level 4 — Local visual perception (Phase 4)
 

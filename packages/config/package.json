@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Single authoritative settings/model configuration for Techie Mind.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

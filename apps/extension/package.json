@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Techie Mind browser extension (Chrome MV3 + Firefox).",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "tsx scripts/build.ts",

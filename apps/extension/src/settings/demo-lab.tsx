@@ -17,7 +17,7 @@ const DEMOS: ReadonlyArray<[string, string]> = [
   ['Ask about a file (attach one first)', 'what is this document about?'],
 ];
 
-/** Measured on the MacBook during the final validation (docs/phases/BATCH_*_MAC_CHECK.md). */
+/** Measured on the MacBook during the final validation. */
 const MAC_VALIDATION: ReadonlyArray<[string, string]> = [
   ['Unit tests', '491+ passing'],
   ['Real-Chrome tests', '58 / 58'],

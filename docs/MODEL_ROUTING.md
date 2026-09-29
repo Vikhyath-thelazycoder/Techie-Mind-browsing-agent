@@ -100,4 +100,4 @@ accuracy on a labelled set).
   (invented query/site/element, injected element, payment control), tokens only, real gate.
 - `tests/browser/models.spec.ts` — the built extension in Chromium with stand-in Laya/Ollama servers
   (real wire formats, simple visible rules). Stand-ins are not the models.
-- Gates: [phases/PHASE_3_GATES.md](phases/PHASE_3_GATES.md), `node scripts/verify/phase3.mjs all`.
+- Gates: `node scripts/verify/phase3.mjs all`.

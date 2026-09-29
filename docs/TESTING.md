@@ -18,7 +18,7 @@
 
 ## Acceptance gates
 
-Each phase has a gate ledger (`docs/phases/PHASE_N_GATES.md`) written **before** implementation (Unlazy method). Every runnable gate calls a repository verifier that inspects structured tool output (Vitest JSON, Playwright JSON, web-ext JSON, the built manifest) and prints a success marker only after all assertions pass.
+Each phase had acceptance gates written **before** implementation. Every runnable gate calls a repository verifier that inspects structured tool output (Vitest JSON, Playwright JSON, web-ext JSON, the built manifest) and prints a success marker only after all assertions pass.
 
 ## Rules
 
@@ -46,7 +46,7 @@ Each phase has a gate ledger (`docs/phases/PHASE_N_GATES.md`) written **before**
 | Real browser | `tests/browser/context.spec.ts` | 12 scenarios with a network guard (positive control) — nothing leaves the fixtures |
 | Live | `tests/live/correction.spec.ts` | A–I + J variants; live browser uses the normal Chrome user agent (headless UA is blocked by some sites) |
 
-Gates: `node scripts/verify/phase1.mjs <policy|resolution|context|correction-live|correction-variants|correction-docs>` ([ledger](phases/PHASE_1_CORRECTION_GATES.md)).
+Gates: `node scripts/verify/phase1.mjs <policy|resolution|context|correction-live|correction-variants|correction-docs>`.
 
 ## Layers (Phase 2)
 
@@ -58,4 +58,4 @@ Gates: `node scripts/verify/phase1.mjs <policy|resolution|context|correction-liv
 | Integration | `packages/agent-core/test/runner.test.ts` | firewall in the loop, injection ignored, payment stop, PII counts without values |
 | Real browser | `tests/browser/adversarial.spec.ts` | injection site, payment result, PII page leak scan (events, storage, audit, network) with positive control, audit across tasks |
 
-Gates: `node scripts/verify/phase2.mjs <correction-regression|detection|vault|gate|firewall|adversarial|audit|performance|docs|all>` ([ledger](phases/PHASE_2_GATES.md)).
+Gates: `node scripts/verify/phase2.mjs <correction-regression|detection|vault|gate|firewall|adversarial|audit|performance|docs|all>`.

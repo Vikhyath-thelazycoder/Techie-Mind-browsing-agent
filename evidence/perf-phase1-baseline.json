@@ -1,8 +1,0 @@
-{
-  "source": "docs/phases/PHASE_1_REPORT.md \u00a716 (fixtures, 20 tasks, measured 2026-09-28 before Phase 2)",
-  "tasks": 20,
-  "totalMs": {
-    "p50": 1039,
-    "p95": 1050
-  }
-}

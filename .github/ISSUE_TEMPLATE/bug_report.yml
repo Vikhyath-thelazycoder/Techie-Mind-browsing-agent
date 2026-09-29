@@ -1,0 +1,60 @@
+name: Bug report
+description: Something didn't work as expected
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Don't paste real personal data** (addresses, phone numbers, e-mails). Use fake values.
+        For security problems, use [private reporting](../security/advisories/new) instead.
+  - type: input
+    id: sentence
+    attributes:
+      label: What you typed or said
+      description: The exact sentence you gave Techie Mind.
+      placeholder: open Flipkart iPhone 15
+    validations:
+      required: true
+  - type: input
+    id: site
+    attributes:
+      label: Website
+      placeholder: https://www.flipkart.com/
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Include the side panel timeline or a screenshot if you can, with personal data removed.
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Edge / other Chromium
+        - Firefox
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Browser and Techie Mind version
+      placeholder: Chrome 140, Techie Mind 0.1.0 (commit abc1234)
+  - type: dropdown
+    id: models
+    attributes:
+      label: Models running
+      multiple: true
+      options:
+        - None (code only)
+        - Laya
+        - Ollama (Qwen)
+        - API gateway

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Strict, runtime-validated contracts shared by the browser runtime, models and server.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

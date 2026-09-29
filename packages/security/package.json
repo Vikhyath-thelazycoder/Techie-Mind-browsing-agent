@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Local action firewall: binding, freshness, risk classification, privacy and prompt-injection/provenance checks, authorization.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "description": "Techie Mind — privacy-first autonomous browser agent (SIH26171).",
+  "license": "MIT",
+  "author": "The Techie Mind Authors",
+  "homepage": "https://github.com/Vikhyath-thelazycoder/sih26171#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vikhyath-thelazycoder/sih26171.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Vikhyath-thelazycoder/sih26171/issues"
+  },
+  "keywords": [
+    "browser-agent",
+    "ai-agent",
+    "chrome-extension",
+    "privacy",
+    "on-device",
+    "llm",
+    "sih2026"
+  ],
   "type": "module",
   "engines": {
     "node": ">=22"
