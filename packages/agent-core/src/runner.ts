@@ -95,6 +95,8 @@ export interface RunnerDeps {
   firewall?: ActionFirewall;
   /** Model tiers (Laya, local model / API). Absent = code only, exactly as in Phase 1–2. */
   intelligence?: Intelligence;
+  /** The user's own instructions for skills whose output the local model writes (Settings → Skills). */
+  skillInstructions?: Partial<Record<SkillId, string>>;
 }
 
 type Stage =
@@ -1594,6 +1596,12 @@ class TaskRun {
   }
 
   /** Summary from locally extracted text, redacted with the task vault before any model sees it. */
+  /** The user's instructions for a model-written skill, when set (Settings → Skills). */
+  #instructions(id: SkillId): { instructions?: string } {
+    const text = this.deps.skillInstructions?.[id]?.trim();
+    return text ? { instructions: text } : {};
+  }
+
   async #summarize() {
     const extract = this.deps.host.extractText?.bind(this.deps.host);
     if (!extract) throw new HandoverError('Reading this page is not available here.', 'policy');
@@ -1651,6 +1659,7 @@ class TaskRun {
             constraints: [],
           },
           page,
+          ...this.#instructions('summarize-page'),
         }),
       );
       this.#recordModel(answer.usage);
@@ -2049,6 +2058,7 @@ class TaskRun {
             constraints: [],
           },
           page,
+          ...this.#instructions('deep-research'),
         }),
       );
       this.#recordModel(answer.usage);

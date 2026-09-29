@@ -4,7 +4,6 @@ import {
   EMPTY_PROFILE,
   HealthRequest,
   HealthResponse,
-  SkillId,
   UserProfile,
   type ProfileField,
 } from '@techie-mind/contracts';
@@ -13,6 +12,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
 import { saveSettings, useSettings } from '../ui/settings-store.js';
+import { SkillsSection } from './SkillsSection.js';
 
 type Section =
   'models' | 'privacy' | 'research' | 'profile' | 'skills' | 'export' | 'diagnostics' | 'about';
@@ -99,7 +99,7 @@ export function SettingsApp({ adapter }: { adapter: BrowserAdapter }) {
         {loaded && section === 'privacy' ? <PrivacySection {...props} /> : null}
         {loaded && section === 'research' ? <ResearchSection {...props} /> : null}
         {loaded && section === 'profile' ? <ProfileSection adapter={props.adapter} /> : null}
-        {loaded && section === 'skills' ? <SkillsSection /> : null}
+        {loaded && section === 'skills' ? <SkillsSection adapter={adapter} /> : null}
         {loaded && section === 'export' ? <ExportSection {...props} /> : null}
         {loaded && section === 'diagnostics' ? <DiagnosticsSection adapter={adapter} /> : null}
         {loaded && section === 'about' ? <AboutSection adapter={adapter} /> : null}
@@ -615,50 +615,6 @@ function ProfileSection({ adapter }: { adapter: BrowserAdapter }) {
         >
           Save Profile
         </button>
-      </div>
-    </>
-  );
-}
-
-const SKILL_BLURBS: Record<SkillId, string> = {
-  'summarize-page': 'Summarize the page you are on. Text-first, local extraction first.',
-  'deep-research': 'Multi-source investigation with explicit citations.',
-  'extract-data': 'Turn the current page into structured, export-ready data.',
-  'compare-prices': 'Cross-store price comparison with an explicit verdict.',
-  'fill-form': 'Safe form completion: fill what it can, submit nothing without permission.',
-  'find-alternatives': 'Discover and vet replacement options for a product, tool or site.',
-  'manage-bookmarks': 'Read, search and organize bookmarks through native APIs.',
-  'monitor-page': 'Background watcher that re-checks a page and notifies on change.',
-  'organize-tabs': 'Clean up tab chaos: dedupe, group by site and report.',
-  'read-later': 'Queue pages for later reading and recall them on demand.',
-  'save-page': 'Archive the current page as a file you can keep offline.',
-  'screenshot-walkthrough': 'Produce a step-by-step visual guide by doing the flow.',
-};
-
-function titleCase(id: string) {
-  return id.replace(
-    /(^|-)(\w)/g,
-    (_m, sep: string, c: string) => (sep ? ' ' : '') + c.toUpperCase(),
-  );
-}
-
-function SkillsSection() {
-  return (
-    <>
-      <PageHeader
-        title="Skills"
-        subtitle="The 12 first-class skills. Each ships with a manifest, input schema, security policy, verification and tests."
-      />
-      <div class="tm-skill-grid">
-        {SkillId.options.map((id) => (
-          <article class="tm-skill" key={id} data-testid={`skill-${id}`}>
-            <div class="tm-skill-head">
-              <strong>{titleCase(id)}</strong>
-              <span class="tm-tag">Phase 6</span>
-            </div>
-            <p>{SKILL_BLURBS[id]}</p>
-          </article>
-        ))}
       </div>
     </>
   );

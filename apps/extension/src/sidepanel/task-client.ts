@@ -2,6 +2,7 @@ import {
   decideNavigation,
   describeGoal,
   needsContextFit,
+  matchCustomSkill,
   needsModel,
   planGoals,
   resolveIntent,
@@ -13,11 +14,13 @@ import {
   TASK_PORT,
   TaskPortMessage,
   type AuditEvent,
+  type CustomSkill,
   type IntentProfile,
   type TaskMode,
   type TaskResult,
 } from '@techie-mind/contracts';
 import { useCallback, useRef, useState } from 'preact/hooks';
+import { loadSkills } from '../shared/skills-store.js';
 
 const KEEPALIVE_MS = 15_000;
 
@@ -29,14 +32,35 @@ export interface PlanPreview {
   problem: string | null;
   /** Code is unsure: the local models will be asked when it runs. */
   needsModel?: boolean;
+  /** Name of the user's own skill this request starts, if any. */
+  skill?: string;
 }
 
 /**
  * Local, model-free preview of what the agent will do ("Ask before acting"). Uses the same
  * deterministic resolver the background uses; the background re-resolves when it runs.
  */
-export function previewPlan(text: string, context: TabContext | null = null): PlanPreview {
+export function previewPlan(
+  text: string,
+  context: TabContext | null = null,
+  custom: readonly CustomSkill[] = [],
+): PlanPreview {
   const { profile } = resolveIntent(text);
+  // One of the user's own skills (Settings → Skills): show its steps, each run as if typed.
+  const own = matchCustomSkill(text, custom);
+  if (own) {
+    return {
+      text,
+      intent: profile,
+      destination: null,
+      steps: [
+        ...own.steps.map((step, i) => `Step ${i + 1}: ${step}`),
+        'Stop at the first step that does not complete',
+      ],
+      problem: null,
+      skill: own.skill.name,
+    };
+  }
   // Code is unsure ("now open the samsung one"): the local models decide when it runs. The preview
   // must not block that with a code-only "could not understand".
   if (needsModel(profile)) {
@@ -147,11 +171,10 @@ export function useTaskRunner(adapter: BrowserAdapter) {
   const preview = useCallback(
     (text: string) => {
       setState({ ...IDLE, phase: 'preview', text, preview: previewPlan(text) });
-      void activeContext(adapter).then((context) => {
-        if (!context) return;
+      void Promise.all([activeContext(adapter), loadSkills(adapter)]).then(([context, skills]) => {
         setState((s) =>
           s.phase === 'preview' && s.text === text
-            ? { ...s, preview: previewPlan(text, context) }
+            ? { ...s, preview: previewPlan(text, context, skills.custom) }
             : s,
         );
       });

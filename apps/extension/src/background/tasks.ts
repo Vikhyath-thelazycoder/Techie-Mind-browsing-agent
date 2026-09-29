@@ -1,4 +1,5 @@
-import { runTask, type AgentHost } from '@techie-mind/agent-core';
+import { matchCustomSkill, runTask, type AgentHost } from '@techie-mind/agent-core';
+import { loadSkills } from '../shared/skills-store.js';
 import type { BrowserAdapter, Port } from '@techie-mind/browser';
 import type { Intelligence } from '@techie-mind/models';
 import { parseSettings, SETTINGS_STORAGE_KEY, type Settings } from '@techie-mind/config';
@@ -108,27 +109,62 @@ export function startTaskService(deps: {
       // Privacy engine redaction: page-derived PII never reaches the timeline, audit or console.
       redact: redactForLog,
     });
-    const task = Task.parse({
-      taskId: newTaskId(),
-      text: request.text,
-      source: request.source,
-      mode: request.mode,
-      autonomy: settings.agent.autonomy,
-      language: 'unknown',
-      status: 'RUNNING',
-      createdAt: Date.now(),
-      maxSteps: settings.agent.maxSteps,
-      skillId: null,
-    });
-    const result = await runTask(task, {
-      host: deps.host,
-      logger,
-      settings,
-      ...(deps.intelligence ? { intelligence: deps.intelligence(settings) } : {}),
-    });
-    await deps.audit?.flush();
-    await appendHistory(deps.adapter, redactResult(result));
-    return result;
+    const skills = await loadSkills(deps.adapter);
+    const runOne = async (text: string): Promise<TaskResult> => {
+      const task = Task.parse({
+        taskId: newTaskId(),
+        text,
+        source: request.source,
+        mode: request.mode,
+        autonomy: settings.agent.autonomy,
+        language: 'unknown',
+        status: 'RUNNING',
+        createdAt: Date.now(),
+        maxSteps: settings.agent.maxSteps,
+        skillId: null,
+      });
+      const result = await runTask(task, {
+        host: deps.host,
+        logger,
+        settings,
+        ...(deps.intelligence ? { intelligence: deps.intelligence(settings) } : {}),
+        skillInstructions: skills.instructions,
+      });
+      await deps.audit?.flush();
+      await appendHistory(deps.adapter, redactResult(result));
+      return result;
+    };
+
+    // One of the user's own skills (Settings → Skills): its steps run in order, each exactly as if
+    // it had been typed — same firewall, same verification, same handovers. The first step that
+    // does not complete ends the skill and is what the user sees.
+    const custom = matchCustomSkill(request.text, skills.custom);
+    if (!custom) return runOne(request.text);
+    let last: TaskResult | null = null;
+    for (const [i, step] of custom.steps.entries()) {
+      logger.event(
+        'SYSTEM',
+        `Skill "${custom.skill.name}" — step ${i + 1}/${custom.steps.length}: ${step}`,
+        {
+          data: { skill: custom.skill.id, step: i + 1, of: custom.steps.length },
+        },
+      );
+      last = await runOne(step);
+      if (last.status !== 'COMPLETED') {
+        return TaskResult.parse({
+          ...last,
+          error: {
+            code: last.error?.code ?? 'SKILL_STEP_FAILED',
+            message:
+              `Skill "${custom.skill.name}" stopped at step ${i + 1} ("${step}"): ${last.error?.message ?? last.status}`.slice(
+                0,
+                500,
+              ),
+          },
+        });
+      }
+    }
+    return last!;
   }
 }
 

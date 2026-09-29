@@ -28,7 +28,7 @@ import {
   LOCATE_SYSTEM,
   locateMessage,
   SUMMARIZE_SCHEMA,
-  SUMMARIZE_SYSTEM,
+  summarizeSystem,
 } from './prompts.js';
 import { describePage, summarizeForModel } from './summary.js';
 import { TransportError, type ModelTransport } from './transport.js';
@@ -107,6 +107,8 @@ export interface SummarizeInput {
   intent: IntentProfile;
   /** Headings and paragraphs, already redacted with the task vault, as sanitized nodes. */
   page: SanitizedObservation;
+  /** The user's own standing instructions for this skill (Settings → Skills), if any. */
+  instructions?: string;
 }
 
 export interface IntelligenceDeps {
@@ -388,7 +390,7 @@ export function createIntelligence(deps: IntelligenceDeps): Intelligence {
         const content = await ollamaChat(deps.transport, active.endpoint!, {
           request: req,
           model: modelId,
-          system: SUMMARIZE_SYSTEM,
+          system: summarizeSystem(input.instructions),
           user: `Page: ${input.page.origin}${input.page.path}\nTitle: ${input.page.title}\n\n${text}`,
           schema: SUMMARIZE_SCHEMA,
           timeoutMs: MODEL_TIMEOUT_MS,

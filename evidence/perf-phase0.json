@@ -1,22 +1,22 @@
 {
-  "measuredAt": "2026-09-29T00:20:22.800Z",
+  "measuredAt": "2026-09-29T01:02:43.828Z",
   "environment": "Playwright Chromium (headless), local machine",
   "sidePanel": {
-    "visibleMs": 73,
-    "domContentLoadedMs": 54.19999999925494,
-    "loadMs": 54.80000000074506,
-    "usedJSHeapBytes": 4424650
+    "visibleMs": 74,
+    "domContentLoadedMs": 55.400000002235174,
+    "loadMs": 56.100000001490116,
+    "usedJSHeapBytes": 4474088
   },
   "panelToServiceWorkerMs": {
     "n": 50,
     "p50": 0.19999999925494194,
-    "p95": 0.3999999985098839,
-    "p99": 0.6999999992549419
+    "p95": 0.30000000074505806,
+    "p99": 0.4000000022351742
   },
   "serviceWorkerToContentScriptMs": {
     "n": 50,
     "p50": 0.10000000149011612,
     "p95": 0.20000000298023224,
-    "p99": 0.20000000298023224
+    "p99": 0.6000000014901161
   }
 }

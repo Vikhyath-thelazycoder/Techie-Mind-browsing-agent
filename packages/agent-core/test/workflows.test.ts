@@ -176,9 +176,14 @@ describe('Phase 5 — summaries', () => {
       },
     };
     const site = shop('/news');
-    const { result } = await run(site, "what's this page about?", { intelligence: ai });
+    const { result } = await run(site, "what's this page about?", {
+      intelligence: ai,
+      // Settings → Skills: the user's own instructions reach the model for this skill only.
+      skillInstructions: { 'summarize-page': '3 bullets, simple English', 'deep-research': 'x' },
+    });
     expect(result.output).toMatchObject({ kind: 'text', source: 'model' });
     expect(seen).toHaveLength(1);
+    expect(seen[0]!.instructions).toBe('3 bullets, simple English');
     const sent = JSON.stringify(seen);
     expect(sent).not.toMatch(/asha\.verma@example\.com|98765 43210/);
     expect(sent).toMatch(/EMAIL_\d{3}/);

@@ -13,6 +13,42 @@ read items, open element and verify. Every click and every typed value passes th
 Output (items, text, list) appears in the side panel result card and is redacted in history. Skills
 never contain site selectors or site scripts.
 
+## Starting a skill
+
+- **In plain words (the main way):** type a sentence in the side panel ("summarize this page",
+  "compare iPhone 15 prices on Amazon and Flipkart", "organize my tabs").
+- **Slash command:** `/skill-id` plus words (`/deep-research budget laptops`).
+- **Voice:** not yet. It arrives with Phase 7.
+- The example sentences in Settings come from `SKILL_EXAMPLES` (`custom-skills.ts`). A test checks
+  that each one really starts its skill.
+
+## Settings → Skills (added 2026-09-29, on the Mac)
+
+The page follows the reference UI, "Skills & Injected Instructions".
+
+- **Built-in skills.** Every card opens to show:
+  - what the skill does and how to say it;
+  - its inputs;
+  - Security (risk, confirmation, permissions);
+  - its Verification checklist and Failure handling.
+- **Prompt instructions.** Skills whose result the local model writes (`summarize-page`,
+  `deep-research`) show the fixed Privacy rules of the prompt, read-only, and take **your
+  instructions**, up to 500 characters.
+  - Your instructions are added *after* the fixed rules (`summarizeSystem`).
+  - They go only to the local model, through the outbound gate.
+  - Code-only skills say they have no prompt; there is no fake edit box.
+- **Your own skills (+ New Skill).** A custom skill has a name, trigger sentences (`{input}` captures
+  words) and up to 10 steps written as ordinary commands.
+  - It is **validated as you type** (`validateCustomSkill`):
+    - every step must be a command Techie Mind understands;
+    - no step may buy anything or start another custom skill;
+    - triggers must not clash with built-in skills or your other skills.
+  - It runs **step by step in the background**. Each step runs exactly as if you typed it: same
+    firewall, verification and handovers.
+  - It stops at the first step that does not complete. A custom skill never adds a capability or
+    runs code.
+  - It is stored locally under `techieMind.skills` (`SkillsConfig`).
+
 ## The 12 skills
 
 | Skill | Say | Strategy | Privacy | Security | Verification | Failure |

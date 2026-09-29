@@ -36,6 +36,26 @@ describe('plan preview', () => {
     expect(p.steps.join(' | ')).toMatch(/iphone 15/);
   });
 
+  it('shows the steps of one of your own skills (Settings → Skills)', () => {
+    const lamp = {
+      id: 'custom-lamp-deals',
+      name: 'Lamp deals',
+      icon: '💡',
+      description: '',
+      triggers: ['lamp deals for {input}'],
+      steps: ['open form.fixture.test and search for {input}', 'open the first result'],
+      createdAt: 0,
+    };
+    const p = previewPlan('lamp deals for desk lamp', FLIPKART, [lamp]);
+    expect(p.problem).toBeNull();
+    expect(p.skill).toBe('Lamp deals');
+    expect(p.steps).toEqual([
+      'Step 1: open form.fixture.test and search for desk lamp',
+      'Step 2: open the first result',
+      'Stop at the first step that does not complete',
+    ]);
+  });
+
   it('still explains requests nothing can do', () => {
     expect(previewPlan('refresh the page', FLIPKART).problem).toMatch(/can't .* yet/);
   });

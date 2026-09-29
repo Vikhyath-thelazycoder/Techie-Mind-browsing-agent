@@ -4,6 +4,7 @@ import {
   TaskResult,
   type AuditEvent,
   type ExtractedItem,
+  type SkillId,
   type UserProfile,
 } from '@techie-mind/contracts';
 import type { Intelligence } from '@techie-mind/models';
@@ -284,7 +285,11 @@ export function shop(
 export async function run(
   site: WorkflowSite,
   text: string,
-  extra: { settings?: Settings; intelligence?: Intelligence } = {},
+  extra: {
+    settings?: Settings;
+    intelligence?: Intelligence;
+    skillInstructions?: Partial<Record<SkillId, string>>;
+  } = {},
 ) {
   const sink = new MemorySink(1000);
   const settings = extra.settings ?? DEFAULT_SETTINGS;
@@ -305,6 +310,7 @@ export async function run(
     logger: createLogger({ component: 'agent', sinks: [sink], level: 'debug' }),
     settings,
     ...(extra.intelligence ? { intelligence: extra.intelligence } : {}),
+    ...(extra.skillInstructions ? { skillInstructions: extra.skillInstructions } : {}),
   });
   expect(TaskResult.safeParse(result).success).toBe(true);
   return { result, events: sink.events as AuditEvent[] };

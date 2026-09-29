@@ -15,6 +15,8 @@ import {
   type ModelCall,
   type ModelReply,
   type ModelTransport,
+  summarizeSystem,
+  SUMMARIZE_SYSTEM,
 } from '../src/index.js';
 
 const INTENT: IntentProfile = {
@@ -511,5 +513,18 @@ describe('vision — local visual grounding client', () => {
         images: [IMAGE],
       }).check,
     ).toBe('pii');
+  });
+});
+
+describe("summary prompt — the user's own instructions (Settings → Skills)", () => {
+  it('adds them after the fixed rules, bounded; without them the prompt is unchanged', () => {
+    expect(summarizeSystem()).toBe(SUMMARIZE_SYSTEM);
+    expect(summarizeSystem('   ')).toBe(SUMMARIZE_SYSTEM);
+    const withOwn = summarizeSystem('3 bullets,\n simple English');
+    expect(withOwn.startsWith(SUMMARIZE_SYSTEM)).toBe(true); // safety rules come first, untouched
+    expect(withOwn).toMatch(/preferences for this summary .*: 3 bullets, simple English$/);
+    expect(summarizeSystem('x'.repeat(900)).length).toBeLessThanOrEqual(
+      SUMMARIZE_SYSTEM.length + 650,
+    );
   });
 });
