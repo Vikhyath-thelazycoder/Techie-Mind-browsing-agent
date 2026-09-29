@@ -13,7 +13,7 @@ us.
 ## Reporting a vulnerability
 
 **Please do not open a public issue.** Report privately through GitHub:
-[**Report a vulnerability**](https://github.com/Vikhyath-thelazycoder/sih26171/security/advisories/new)
+[**Report a vulnerability**](https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent/security/advisories/new)
 (repo → *Security* → *Report a vulnerability*).
 
 Please include:

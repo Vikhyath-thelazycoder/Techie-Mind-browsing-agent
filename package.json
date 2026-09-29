@@ -5,13 +5,13 @@
   "description": "Techie Mind — privacy-first autonomous browser agent (SIH26171).",
   "license": "MIT",
   "author": "The Techie Mind Authors",
-  "homepage": "https://github.com/Vikhyath-thelazycoder/sih26171#readme",
+  "homepage": "https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Vikhyath-thelazycoder/sih26171.git"
+    "url": "git+https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent.git"
   },
   "bugs": {
-    "url": "https://github.com/Vikhyath-thelazycoder/sih26171/issues"
+    "url": "https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent/issues"
   },
   "keywords": [
     "browser-agent",

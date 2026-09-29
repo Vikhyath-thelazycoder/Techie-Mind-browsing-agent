@@ -10,7 +10,7 @@ Tell it what you want in plain English or Kannada, typed or spoken. It opens the
 clicks, fills and reads, and it checks every step. Local models first. Your page content stays on
 your device.
 
-[![CI](https://github.com/Vikhyath-thelazycoder/sih26171/actions/workflows/ci.yml/badge.svg)](https://github.com/Vikhyath-thelazycoder/sih26171/actions/workflows/ci.yml)
+[![CI](https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-b23a2a.svg)](LICENSE)
 ![Chrome MV3](https://img.shields.io/badge/Chrome-MV3%20·%20116%2B-1d1a17?logo=googlechrome&logoColor=white)
 ![Firefox](https://img.shields.io/badge/Firefox-142%2B-1d1a17?logo=firefoxbrowser&logoColor=white)
@@ -102,8 +102,8 @@ Measured on a MacBook in the final validation ([docs/FINAL_VALIDATION.md](docs/F
 ### Install and build
 
 ```bash
-git clone https://github.com/Vikhyath-thelazycoder/sih26171.git techie-mind
-cd techie-mind
+git clone https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent.git
+cd Techie-Mind-browsing-agent
 npm install
 npm run build        # Chrome + Firefox builds in apps/extension/dist/
 ```

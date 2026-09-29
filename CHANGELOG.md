@@ -41,5 +41,5 @@ First public release, built for Smart India Hackathon 2026 (SIH26171).
 - Chrome MV3 (116+) and Firefox (142+) builds, unit tests, real-Chromium tests and live-website
   acceptance tests.
 
-[Unreleased]: https://github.com/Vikhyath-thelazycoder/sih26171/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/Vikhyath-thelazycoder/sih26171/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent/releases/tag/v0.1.0

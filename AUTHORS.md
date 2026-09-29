@@ -2,7 +2,7 @@
 
 Techie Mind is built by the Techie Mind team for Smart India Hackathon 2026 (SIH26171).
 "The Techie Mind Authors" in [LICENSE](LICENSE) means everyone listed here and everyone in the
-[contributors graph](https://github.com/Vikhyath-thelazycoder/sih26171/graphs/contributors).
+[contributors graph](https://github.com/Vikhyath-thelazycoder/Techie-Mind-browsing-agent/graphs/contributors).
 
 ## Team
 
