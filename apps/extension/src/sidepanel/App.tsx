@@ -1,11 +1,13 @@
 import type { BrowserAdapter } from '@techie-mind/browser';
 import { PRODUCT_NAME, resolveActiveModel, type Settings } from '@techie-mind/config';
-import { OpenSettingsRequest, type TaskMode } from '@techie-mind/contracts';
+import { OpenSettingsRequest, type CustomSkill, type TaskMode } from '@techie-mind/contracts';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { loadSkills } from '../shared/skills-store.js';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
 import { saveSettings, useSettings } from '../ui/settings-store.js';
 import { RunView } from './activity.js';
 import { HistoryView } from './history.js';
+import { skillMenuItems } from './skill-menu.js';
 import { useTaskRunner } from './task-client.js';
 import { speakResult, useVoiceInput, VOICE_LANGUAGES } from './voice.js';
 
@@ -122,7 +124,14 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
 
       <main class="tm-main">
         {view === 'agent' && runner.state.phase === 'idle' ? (
-          <AgentView onOpenSettings={openSettings} />
+          <AgentView
+            onOpenSettings={openSettings}
+            onRun={(text) => submit(text)}
+            onPrefill={(text) => {
+              setDraft(text);
+              document.getElementById('tm-task-input')?.focus();
+            }}
+          />
         ) : null}
         {view === 'agent' && runner.state.phase !== 'idle' ? (
           <RunView
@@ -219,12 +228,15 @@ function ModelChip({ adapter, settings }: { adapter: BrowserAdapter; settings: S
   );
 }
 
+/** Home tiles: `run` starts the request at once, `prefill` puts it in the box to finish typing. */
 const QUICK_ACTIONS: ReadonlyArray<{
   id: string;
   title: string;
   subtitle: string;
   icon: IconName;
-  availableIn: string | null;
+  run?: string;
+  prefill?: string;
+  notice?: string;
   tone?: 'success';
 }> = [
   {
@@ -232,33 +244,42 @@ const QUICK_ACTIONS: ReadonlyArray<{
     title: 'Summaries',
     subtitle: 'Key points of this page',
     icon: 'fileText',
-    availableIn: 'Phase 6',
+    run: 'summarize this page',
   },
   {
     id: 'extract',
     title: 'Extract Data',
     subtitle: 'Page → JSON · CSV',
     icon: 'layout',
-    availableIn: 'Phase 6',
+    run: 'extract the data as csv',
   },
   {
     id: 'research',
     title: 'Deep Research',
     subtitle: 'Multi-source report',
     icon: 'search',
-    availableIn: 'Phase 6',
+    prefill: 'research ',
   },
   {
     id: 'private',
     title: 'Private Run',
     subtitle: 'On-device, no cloud',
     icon: 'shieldCheck',
-    availableIn: 'Phase 3',
+    notice:
+      'Every task is private by default: pages are read and redacted on this device, and only your local models (Laya, Ollama) are used unless you add a cloud API in Settings.',
     tone: 'success',
   },
 ];
 
-function AgentView({ onOpenSettings }: { onOpenSettings: () => void }) {
+function AgentView({
+  onOpenSettings,
+  onRun,
+  onPrefill,
+}: {
+  onOpenSettings: () => void;
+  onRun: (text: string) => void;
+  onPrefill: (text: string) => void;
+}) {
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <section class="tm-agent" data-testid="agent-view">
@@ -276,7 +297,11 @@ function AgentView({ onOpenSettings }: { onOpenSettings: () => void }) {
             type="button"
             class="tm-action-card"
             data-testid={`quick-${a.id}`}
-            onClick={() => setNotice(`${a.title} is implemented in ${a.availableIn}.`)}
+            onClick={() => {
+              if (a.run) onRun(a.run);
+              else if (a.prefill) onPrefill(a.prefill);
+              else setNotice(a.notice ?? null);
+            }}
           >
             <span class={`tm-action-icon${a.tone === 'success' ? ' is-success' : ''}`}>
               <Icon name={a.icon} size={22} />
@@ -324,13 +349,17 @@ function PrivacyView({ settings }: { settings: Settings }) {
         </div>
         <div class="tm-card-row">
           <span>Local detection engine</span>
-          <span class="tm-tag">Phase 2</span>
+          <span class="tm-tag">{on ? 'Active' : 'Paused'}</span>
         </div>
         <ul class="tm-detector-list">
           {DETECTORS.map((d) => (
             <li key={d}>
               <span>{d}</span>
-              <small>configured · enforcement arrives in Phase 2</small>
+              <small>
+                {on
+                  ? 'detected and redacted on this device before anything is sent'
+                  : 'off — turn the privacy boundary on in Settings'}
+              </small>
             </li>
           ))}
         </ul>
@@ -382,6 +411,19 @@ function Composer(props: {
   };
   const [menu, setMenu] = useState<'mode' | 'autonomy' | null>(null);
   const autonomy = props.settings.agent.autonomy;
+  // "/" opens the skill menu: built-in skills and the user's own (Settings → Skills).
+  const [custom, setCustom] = useState<readonly CustomSkill[]>([]);
+  const [slashIndex, setSlashIndex] = useState(0);
+  const slash = /^\/(\S*)$/u.exec(props.draft);
+  useEffect(() => {
+    if (slash) void loadSkills(props.adapter).then((s) => setCustom(s.custom));
+  }, [props.adapter, slash !== null]);
+  const slashItems = slash ? skillMenuItems(slash[1] ?? '', custom) : [];
+  const pickSkill = (insert: string) => {
+    props.onDraft(insert);
+    setSlashIndex(0);
+    document.getElementById('tm-task-input')?.focus();
+  };
   const currentMode = MODES.find((m) => m.id === mode) ?? MODES[0]!;
 
   const setAutonomy = async (value: typeof autonomy) => {
@@ -428,21 +470,66 @@ function Composer(props: {
       <label class="tm-sr-only" for="tm-task-input">
         Task
       </label>
-      <textarea
-        id="tm-task-input"
-        class="tm-input"
-        rows={2}
-        placeholder="Ask anything — type / for skills"
-        value={props.draft}
-        data-testid="task-input"
-        onInput={(e) => props.onDraft((e.target as HTMLTextAreaElement).value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            props.onSubmit();
-          }
-        }}
-      />
+      <div class="tm-popover-anchor tm-input-wrap">
+        {slashItems.length > 0 ? (
+          <div class="tm-slash-menu" role="listbox" data-testid="slash-menu">
+            {slashItems.map((item, i) => (
+              <button
+                key={item.id}
+                type="button"
+                role="option"
+                aria-selected={i === slashIndex}
+                class={`tm-menu-item${i === slashIndex ? ' is-active' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickSkill(item.insert);
+                }}
+              >
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{item.insert.trim() || item.description}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <textarea
+          id="tm-task-input"
+          class="tm-input"
+          rows={2}
+          placeholder="Ask anything — type / for skills"
+          value={props.draft}
+          data-testid="task-input"
+          onInput={(e) => {
+            props.onDraft((e.target as HTMLTextAreaElement).value);
+            setSlashIndex(0);
+          }}
+          onKeyDown={(e) => {
+            if (slashItems.length > 0) {
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const step = e.key === 'ArrowDown' ? 1 : -1;
+                setSlashIndex((slashIndex + step + slashItems.length) % slashItems.length);
+                return;
+              }
+              if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                pickSkill(slashItems[Math.min(slashIndex, slashItems.length - 1)]!.insert);
+                return;
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                props.onDraft('');
+                return;
+              }
+            }
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              props.onSubmit();
+            }
+          }}
+        />
+      </div>
 
       {voice.error ? (
         <p class="tm-notice" role="alert" data-testid="voice-error">
@@ -500,7 +587,13 @@ function Composer(props: {
           ) : null}
         </div>
         <div class="tm-composer-tools">
-          <button type="button" class="tm-icon-btn" disabled title="Attachments — Phase 6">
+          <button
+            type="button"
+            class="tm-icon-btn"
+            disabled
+            aria-disabled="true"
+            title="File upload is not available yet (coming in Batch D)"
+          >
             <Icon name="paperclip" size={16} />
           </button>
           <button

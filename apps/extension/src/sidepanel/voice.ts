@@ -246,6 +246,45 @@ const PHRASES: Record<string, { done: string; needs: string; failed: string; pau
   },
 };
 
+/** "flipkart.com" / "www.youtube.com" → "Flipkart" / "Youtube". */
+function siteName(domain: string | null | undefined): string {
+  if (!domain) return 'the page';
+  const label = domain.replace(/^www\./, '').split('.')[0] ?? domain;
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** One plain sentence about what a finished task did, for tasks without a result card. */
+function whatWasDone(result: TaskResult): string {
+  const intent = result.intent;
+  const site = siteName(result.target?.domain ?? intent?.targetDomain);
+  const query = intent?.query ? `"${intent.query.slice(0, 80)}"` : '';
+  switch (intent?.action) {
+    case 'search':
+      return query ? `I searched ${site} for ${query}.` : `I searched on ${site}.`;
+    case 'search_and_play':
+    case 'play_result':
+    case 'play_element':
+      return query ? `Playing ${query} on ${site}.` : `It is playing on ${site}.`;
+    case 'search_and_open':
+    case 'open_result':
+    case 'open_element':
+    case 'pick_item':
+      return `I opened it on ${site}.`;
+    case 'navigate':
+      return `I opened ${site}.`;
+    case 'scroll':
+      return 'I scrolled the page.';
+    case 'go_back':
+      return 'I went back to the previous page.';
+    case 'go_forward':
+      return 'I went forward.';
+    case 'add_to_cart':
+      return `I added it to your cart on ${site}.`;
+    default:
+      return '';
+  }
+}
+
 /** A short spoken line: status in the user's language, then the essential detail. */
 export function spokenSummary(result: TaskResult): { text: string; lang: string } {
   const lang = bcp47(result.intent?.language ?? 'en');
@@ -253,9 +292,16 @@ export function spokenSummary(result: TaskResult): { text: string; lang: string 
   const detail = (() => {
     if (result.status === 'COMPLETED') {
       const out = result.output;
-      if (!out) return '';
+      if (!out) return whatWasDone(result);
       if (out.kind === 'text') return out.text.slice(0, 280);
-      if (out.kind === 'items') return `${out.items.length} results.`;
+      if (out.kind === 'items') {
+        const first = out.items[0];
+        const price =
+          first?.price != null
+            ? ` The first is ${first.title.slice(0, 60)} at ₹${first.price}.`
+            : '';
+        return `I found ${out.items.length} results.${price}`;
+      }
       return out.entries.slice(0, 3).join('. ');
     }
     if (result.handover) return result.handover.userAction;
