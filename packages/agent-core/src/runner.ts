@@ -275,7 +275,9 @@ function cleanItems(items: ExtractedItem[]): ExtractedItem[] {
 
 /** Controls that start the payment flow (the agent never presses them). */
 const CHECKOUT_LABEL =
-  /check\s?out|proceed\s+to\s+(?:buy|pay|payment|checkout)|place\s+(?:your\s+)?order|buy\s+now|pay\s+now|continue\s+to\s+payment/i;
+  /check\s?out|proceed\s+to\s+(?:buy|pay|payment|checkout)|place\s+(?:your\s+)?order|pay\s+now|continue\s+to\s+payment/i;
+/** Direct purchase on a product page — a payment step when there is no cart to go to first. */
+const BUY_NOW_LABEL = /^buy\s+now$/i;
 
 /** The tab still shows the same document at the same address (nothing happened there). */
 function samePage(a: ProbeResponse, b: ProbeResponse): boolean {
@@ -1772,10 +1774,17 @@ class TaskRun {
     const checkoutControl = obs.domNodes.find(
       (n) => n.visible && n.interactive && CHECKOUT_LABEL.test(label(n)),
     );
-    // The financial boundary: the checkout control starts the payment flow — the user presses it.
-    if (goal.target === 'checkout' && checkoutControl) {
+    // The financial boundary: a checkout control starts the payment flow — the user presses it.
+    // On a product page without one, "checkout" opens the cart first; "Buy now" with no cart to
+    // go to is a payment step too.
+    const buyNow = obs.domNodes.find(
+      (n) => n.visible && n.interactive && BUY_NOW_LABEL.test(label(n)),
+    );
+    const payment =
+      goal.target === 'checkout' ? (checkoutControl ?? (cartLink ? null : buyNow)) : null;
+    if (payment) {
       throw new HandoverError(
-        `"${label(checkoutControl).slice(0, 80)}" starts the payment — the agent stops here. Press it yourself if you want to buy.`,
+        `"${label(payment).slice(0, 80)}" starts the payment — the agent stops here. Press it yourself if you want to buy.`,
         'policy',
         'payment',
       );
@@ -3031,7 +3040,11 @@ class TaskRun {
         }
         // Still an (almost) empty document: a site check can take longer than one settle window
         // (seen live on a large store). Wait once more, bounded, before giving up.
-        if (!ladder.used('refresh-empty') && obs.domNodes.filter((n) => n.visible).length < 8) {
+        if (
+          !ladder.used('refresh-empty') &&
+          obs.domNodes.filter((n) => n.visible).length < 8 &&
+          groundSearchToggle(obs).length === 0
+        ) {
           ladder.decide(
             2,
             'refresh-observation',
