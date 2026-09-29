@@ -71,7 +71,7 @@ export function createContentHandler(
           deferred: null,
         };
       case 'EXECUTE':
-        return executeAction(request.action, ctx, request.resolved);
+        return executeAction(request.action, ctx, request.resolved, request.file);
       case 'EXTRACT_ITEMS': {
         const started = performance.now();
         const items = extractItems(ctx.doc, ctx.registry);

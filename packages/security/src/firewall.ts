@@ -59,6 +59,8 @@ export interface FirewallContext {
    * CAPTCHA and every earlier check still apply.
    */
   approvals?: ReadonlySet<string>;
+  /** The file the user attached for this task (paperclip); an UPLOAD of it is user-requested. */
+  attachedFileRef?: string | null;
   /** When the runtime received the observation (its own clock); defaults to observation.createdAt. */
   observedAt?: number;
 }
@@ -190,7 +192,15 @@ export class ActionFirewall {
       ) {
         return deny('target', 'target identity does not match its fingerprint');
       }
-      if (!target.visible) return deny('target', 'target is not visible');
+      const hiddenFileField =
+        action.args.type === 'UPLOAD' && target.tag === 'input' && target.inputType === 'file';
+      if (!target.visible && !hiddenFileField) return deny('target', 'target is not visible');
+      if (
+        action.args.type === 'UPLOAD' &&
+        !(target.tag === 'input' && target.inputType === 'file')
+      ) {
+        return deny('target', 'target is not a file field');
+      }
       if (action.args.type === 'TYPE' && !target.editable) {
         return deny('target', 'target does not accept text');
       }
@@ -289,7 +299,12 @@ export class ActionFirewall {
       return deny('authorization', risk.reasons.join('; '), risk.handover);
     }
     const userRequested =
-      action.args.type === 'NAVIGATE' || (action.args.type === 'TYPE' && risk.level === 'LOW');
+      action.args.type === 'NAVIGATE' ||
+      (action.args.type === 'TYPE' && risk.level === 'LOW') ||
+      // The user attached this exact file and asked for the upload.
+      (action.args.type === 'UPLOAD' &&
+        !!ctx.attachedFileRef &&
+        action.args.fileRef === ctx.attachedFileRef);
     const approved =
       ctx.approvals !== undefined &&
       ctx.approvals.size > 0 &&

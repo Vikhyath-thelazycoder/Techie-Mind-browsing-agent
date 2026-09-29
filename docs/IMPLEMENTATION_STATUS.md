@@ -1,6 +1,6 @@
 # Implementation Status
 
-**Status:** Phase 0 — Foundation: COMPLETE. Phase 1 — Real Browser Agent Core: COMPLETE (see [phases/PHASE_1_REPORT.md](phases/PHASE_1_REPORT.md)), including the Phase 1 correction (website resolution, current-tab awareness, task continuity — [phases/PHASE_1_CORRECTION_REPORT.md](phases/PHASE_1_CORRECTION_REPORT.md)). Phase 2 — Security + Privacy: COMPLETE (see [phases/PHASE_2_REPORT.md](phases/PHASE_2_REPORT.md)). Phase 3 — Model Routing and Phase 4 — Visual Perception: COMPLETE (Batch A, see [phases/BATCH_A_REPORT.md](phases/BATCH_A_REPORT.md)). Phase 5 — Real Agent Workflows and Phase 6 — All 12 Skills: COMPLETE (Batch B, see [phases/BATCH_B_REPORT.md](phases/BATCH_B_REPORT.md)). Phase 7 — Human Handover + Voice + Multilingual and Phase 8 — Persistent Monitoring: CODE COMPLETE (Batch C, see [phases/BATCH_C_REPORT.md](phases/BATCH_C_REPORT.md); manual checks in [phases/BATCH_C_CHECKLIST.md](phases/BATCH_C_CHECKLIST.md)). Phases 9–10 not started.
+**Status:** Phase 0 — Foundation: COMPLETE. Phase 1 — Real Browser Agent Core: COMPLETE (see [phases/PHASE_1_REPORT.md](phases/PHASE_1_REPORT.md)), including the Phase 1 correction (website resolution, current-tab awareness, task continuity — [phases/PHASE_1_CORRECTION_REPORT.md](phases/PHASE_1_CORRECTION_REPORT.md)). Phase 2 — Security + Privacy: COMPLETE (see [phases/PHASE_2_REPORT.md](phases/PHASE_2_REPORT.md)). Phase 3 — Model Routing and Phase 4 — Visual Perception: COMPLETE (Batch A, see [phases/BATCH_A_REPORT.md](phases/BATCH_A_REPORT.md)). Phase 5 — Real Agent Workflows and Phase 6 — All 12 Skills: COMPLETE (Batch B, see [phases/BATCH_B_REPORT.md](phases/BATCH_B_REPORT.md)). Phase 7 — Human Handover + Voice + Multilingual and Phase 8 — Persistent Monitoring: CODE COMPLETE (Batch C, see [phases/BATCH_C_REPORT.md](phases/BATCH_C_REPORT.md); manual checks in [phases/BATCH_C_CHECKLIST.md](phases/BATCH_C_CHECKLIST.md)). Phase 9 — Complete Product and Phase 10 — Validation: CODE COMPLETE (Batch D, see [phases/BATCH_D_REPORT.md](phases/BATCH_D_REPORT.md) and [FINAL_VALIDATION.md](FINAL_VALIDATION.md)).
 
 | Phase | Name | Status |
 |---|---|---|
@@ -13,8 +13,8 @@
 | 6 | All 12 Skills | **Complete** (Batch B) |
 | 7 | Human Handover + Voice + Multilingual | **Code complete** (Batch C; manual check on the Mac) |
 | 8 | Persistent Monitoring | **Code complete** (Batch C; Supabase setup + manual check) |
-| 9 | Complete Techie Mind Product | Not started |
-| 10 | SIH Validation + Final Hardening | Not started |
+| 9 | Complete Techie Mind Product | **Code complete** (Batch D; manual check on the Mac) |
+| 10 | SIH Validation + Final Hardening | **Code complete** (Batch D; FINAL_VALIDATION.md) |
 
 ## Phase 0 deliverables
 

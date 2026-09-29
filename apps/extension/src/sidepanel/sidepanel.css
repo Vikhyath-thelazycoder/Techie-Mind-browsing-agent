@@ -864,3 +864,33 @@
   border-color: var(--tm-accent-border);
   background: var(--tm-accent-soft);
 }
+
+.tm-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tm-accent-strong);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Privacy inspector (Phase 9). */
+.tm-inspector {
+  margin: var(--tm-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-inspector > li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--tm-space-3);
+  padding: var(--tm-space-2) 0;
+  border-top: 1px solid var(--tm-border);
+}
+
+.tm-inspector > li > span:last-child {
+  text-align: right;
+  color: var(--tm-text-muted);
+}

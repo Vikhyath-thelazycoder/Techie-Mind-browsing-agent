@@ -1,6 +1,14 @@
 import type { BrowserAdapter } from '@techie-mind/browser';
 import { PRODUCT_NAME, resolveActiveModel, type Settings } from '@techie-mind/config';
-import { OpenSettingsRequest, type CustomSkill, type TaskMode } from '@techie-mind/contracts';
+import {
+  FileAttachment,
+  MAX_ATTACHMENT_BYTES,
+  OpenSettingsRequest,
+  type CustomSkill,
+  HISTORY_STORAGE_KEY,
+  TaskResult,
+  type TaskMode,
+} from '@techie-mind/contracts';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { loadSkills } from '../shared/skills-store.js';
 import { Icon, LogoMark, type IconName } from '../ui/icons.js';
@@ -36,13 +44,26 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
     speakResult(result, settings.voice.voicePersona);
   }, [runner.state.result, settings.voice.ttsEnabled, settings.voice.voicePersona]);
 
+  // The file attached with the paperclip, for "upload it". Memory only; cleared on New.
+  const [attachment, setAttachment] = useState<FileAttachment | null>(null);
+  // The latest task in history, for the privacy inspector when nothing ran in this panel yet.
+  const [lastResult, setLastResult] = useState<TaskResult | null>(null);
+  useEffect(() => {
+    if (view !== 'privacy') return;
+    void adapter
+      .storageGet(HISTORY_STORAGE_KEY)
+      .then((v) =>
+        setLastResult(Array.isArray(v) ? (TaskResult.safeParse(v[0]).data ?? null) : null),
+      );
+  }, [view, adapter]);
+
   const submit = (text: string, source: 'typed' | 'rerun' | 'voice' = 'typed') => {
     const trimmed = text.trim();
     if (!trimmed || runner.state.phase === 'running') return;
     setView('agent');
     setDraft('');
     if (settings.agent.autonomy === 'ask-before-acting') runner.preview(trimmed);
-    else runner.run(trimmed, mode, source);
+    else runner.run(trimmed, mode, source, attachment);
   };
 
   const openSettings = () => {
@@ -78,6 +99,7 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
             data-testid="new-task"
             onClick={() => {
               setDraft('');
+              setAttachment(null);
               runner.reset();
               setView('agent');
             }}
@@ -136,7 +158,7 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
         {view === 'agent' && runner.state.phase !== 'idle' ? (
           <RunView
             state={runner.state}
-            onRun={() => runner.run(runner.state.text, mode)}
+            onRun={() => runner.run(runner.state.text, mode, 'typed', attachment)}
             onCancel={runner.reset}
             onControl={runner.control}
             onResume={runner.resume}
@@ -145,7 +167,9 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
         {view === 'history' ? (
           <HistoryView adapter={adapter} onRerun={(text) => submit(text, 'rerun')} />
         ) : null}
-        {view === 'privacy' ? <PrivacyView settings={settings} /> : null}
+        {view === 'privacy' ? (
+          <PrivacyView settings={settings} result={runner.state.result ?? lastResult} />
+        ) : null}
       </main>
 
       {view === 'agent' ? (
@@ -159,6 +183,8 @@ export function App({ adapter }: { adapter: BrowserAdapter }) {
           running={runner.state.phase === 'running'}
           onSubmit={() => submit(draft)}
           onVoice={(text) => submit(text, 'voice')}
+          attachment={attachment}
+          onAttachment={setAttachment}
         />
       ) : null}
     </div>
@@ -335,7 +361,77 @@ function AgentView({
 
 const DETECTORS = ['PII', 'Secrets', 'Passwords', 'Financial data', 'Faces'];
 
-function PrivacyView({ settings }: { settings: Settings }) {
+/**
+ * What the last task did with data (spec §56: counts and kinds, never values): what was read, what
+ * was found and kept on this device, what the firewall blocked, and exactly what left the browser.
+ */
+function PrivacyInspector({ result }: { result: TaskResult | null }) {
+  if (!result) {
+    return (
+      <div class="tm-card" data-testid="privacy-inspector">
+        <h3>Privacy inspector</h3>
+        <p class="tm-muted">
+          No task yet. After a task runs, this shows what was read, what was found and kept on this
+          device, and exactly what was sent anywhere.
+        </p>
+      </div>
+    );
+  }
+  const p = result.privacy;
+  const kinds = p
+    ? Object.entries(p.byKind)
+        .filter(([, n]) => n > 0)
+        .map(([k, n]) => `${k.replace(/_/g, ' ')} ×${n}`)
+        .join(', ')
+    : '';
+  const called = result.models.filter((m) => m.reason !== 'disabled');
+  const local = called.filter((m) => m.tier !== 'api');
+  const remote = called.filter((m) => m.tier === 'api');
+  const vision = called.some((m) => m.tier === 'vision');
+  const rows: Array<[string, string]> = [
+    [
+      'Pages read',
+      `${result.timings.observations} observation(s), ${p?.scans ?? 0} privacy scan(s)`,
+    ],
+    [
+      'Sensitive data found',
+      p && p.detected > 0 ? `${p.detected} item(s) — ${kinds}; kept on this device` : 'none',
+    ],
+    [
+      'Page text aimed at the agent',
+      p?.injectionsIgnored ? `${p.injectionsIgnored} ignored` : 'none',
+    ],
+    ['Actions blocked by the firewall', String(p?.actionsBlocked ?? 0)],
+    [
+      'Local models asked',
+      local.length
+        ? `${local.map((m) => m.modelId).join(', ')} — only redacted text${vision ? ' and a redacted screenshot' : ''}`
+        : 'none (code handled it)',
+    ],
+    [
+      'Sent off this device',
+      remote.length
+        ? `${remote.length} request(s) to your cloud API — redacted, vault tokens instead of values`
+        : `${p?.sentExternally ?? 0} bytes of page content`,
+    ],
+  ];
+  return (
+    <div class="tm-card" data-testid="privacy-inspector">
+      <h3>Privacy inspector</h3>
+      <p class="tm-muted">Last task: “{result.text.slice(0, 120)}”</p>
+      <ul class="tm-inspector">
+        {rows.map(([label, value]) => (
+          <li key={label}>
+            <span>{label}</span>
+            <span>{value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PrivacyView({ settings, result }: { settings: Settings; result: TaskResult | null }) {
   const on = settings.privacy.enabled;
   return (
     <section class="tm-page" data-testid="privacy-view">
@@ -364,13 +460,7 @@ function PrivacyView({ settings }: { settings: Settings }) {
           ))}
         </ul>
       </div>
-      <div class="tm-card">
-        <h3>Privacy inspector</h3>
-        <p class="tm-muted">
-          No active capture. When a task runs, this shows what was captured, what was redacted and
-          why, and exactly what was sent.
-        </p>
-      </div>
+      <PrivacyInspector result={result} />
     </section>
   );
 }
@@ -391,8 +481,33 @@ function Composer(props: {
   running: boolean;
   onSubmit: () => void;
   onVoice: (text: string) => void;
+  attachment: FileAttachment | null;
+  onAttachment: (file: FileAttachment | null) => void;
 }) {
   const { mode } = props;
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const pickFile = async (file: File | undefined) => {
+    setFileError(null);
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setFileError(`"${file.name}" is larger than 10 MB.`);
+      return;
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    props.onAttachment(
+      FileAttachment.parse({
+        name: file.name.slice(0, 255),
+        mime: file.type.slice(0, 128),
+        size: file.size,
+        base64: btoa(binary),
+      }),
+    );
+  };
   const voice = useVoiceInput(props.settings, props.onVoice);
   const language =
     VOICE_LANGUAGES.find((l) => l.id === props.settings.language.preferredInputLanguage) ??
@@ -531,6 +646,19 @@ function Composer(props: {
         />
       </div>
 
+      {props.attachment || fileError ? (
+        <p class="tm-notice" role="status" data-testid="attachment-chip">
+          {fileError ?? (
+            <>
+              📎 {props.attachment!.name} ({Math.max(1, Math.round(props.attachment!.size / 1024))}{' '}
+              KB) — say "upload it" on the page.{' '}
+              <button type="button" class="tm-link" onClick={() => props.onAttachment(null)}>
+                Remove
+              </button>
+            </>
+          )}
+        </p>
+      ) : null}
       {voice.error ? (
         <p class="tm-notice" role="alert" data-testid="voice-error">
           {voice.error}
@@ -587,12 +715,27 @@ function Composer(props: {
           ) : null}
         </div>
         <div class="tm-composer-tools">
+          <input
+            ref={fileInput}
+            type="file"
+            hidden
+            data-testid="attach-input"
+            onChange={(e) => {
+              const input = e.target as HTMLInputElement;
+              void pickFile(input.files?.[0]);
+              input.value = '';
+            }}
+          />
           <button
             type="button"
-            class="tm-icon-btn"
-            disabled
-            aria-disabled="true"
-            title="File upload is not available yet (coming in Batch D)"
+            class={`tm-icon-btn${props.attachment ? ' is-listening' : ''}`}
+            data-testid="attach"
+            title={
+              props.attachment
+                ? `Attached: ${props.attachment.name} — say "upload it" on a page with an upload field`
+                : 'Attach a file to upload into a page (stays on this computer until you ask to upload it)'
+            }
+            onClick={() => fileInput.current?.click()}
           >
             <Icon name="paperclip" size={16} />
           </button>
