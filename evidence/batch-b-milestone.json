@@ -16,68 +16,12 @@
     "note": "Go to checkout (the agent stops before payment): No cart or checkout control is visible on this page."
   },
   {
-    "id": "d1",
-    "sentence": "search iPhone 15 on Amazon",
-    "result": "PASS (COMPLETED)",
-    "ms": 7936,
-    "evidence": "evidence/batch-b-live-d1.png",
-    "note": "output none"
-  },
-  {
-    "id": "d2",
-    "sentence": "open the cheapest one",
-    "result": "PASS (COMPLETED)",
-    "ms": 3437,
-    "evidence": "evidence/batch-b-live-d2.png",
-    "note": "/iPhone-17-512-Promotion-Resistance/dp/B0FQFQQN24/ref=sr_1_15"
-  },
-  {
     "id": "e1",
     "sentence": "add to cart",
     "result": "FAIL (FAILED)",
     "ms": 379,
     "evidence": "evidence/batch-b-live-e1.png",
     "note": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m | Add this item to the cart: clicked, but the page shows no sign the item was added"
-  },
-  {
-    "id": "a",
-    "sentence": "play a Kannada song on YouTube",
-    "result": "PASS (COMPLETED)",
-    "ms": 5631,
-    "evidence": "evidence/batch-b-live-a.png",
-    "note": "watch page, unmuted, volume 0.7816278945765615, t 2.1→5.1 s, user gesture true, trusted click true"
-  },
-  {
-    "id": "b",
-    "sentence": "search laptops under ₹50,000 on Flipkart",
-    "result": "PASS (COMPLETED)",
-    "ms": 3482,
-    "evidence": "evidence/batch-b-live-b.png",
-    "note": "19/29 items kept, ₹15990–₹48990"
-  },
-  {
-    "id": "c1",
-    "sentence": "open the cheapest one",
-    "result": "PASS (COMPLETED)",
-    "ms": 2366,
-    "evidence": "evidence/batch-b-live-c1.png",
-    "note": "product page /lenovo-100e-chromebook-gen-4-mediatek-kompanio-520-4-gb-32-; cheapest listed ₹15990; price on page matches"
-  },
-  {
-    "id": "c2",
-    "sentence": "go back",
-    "result": "PASS (COMPLETED)",
-    "ms": 1849,
-    "evidence": "evidence/batch-b-live-c2.png",
-    "note": "back on the results page"
-  },
-  {
-    "id": "c3",
-    "sentence": "scroll down",
-    "result": "PASS (COMPLETED)",
-    "ms": 303,
-    "evidence": "evidence/batch-b-live-c3.png",
-    "note": "scrollY 576 in the agent's tab"
   },
   {
     "id": "f",
@@ -214,5 +158,61 @@
     "ms": 5629,
     "evidence": "evidence/batch-b-live-r4.png",
     "note": "media_playback · \"Kannada song\" (deterministic); went to YouTube (media default) and played"
+  },
+  {
+    "id": "a",
+    "sentence": "play a Kannada song on YouTube",
+    "result": "PASS (COMPLETED)",
+    "ms": 5806,
+    "evidence": "evidence/batch-b-live-a.png",
+    "note": "watch page, unmuted, volume 0.5272298614228227, t 2.2→5.2 s, user gesture true, trusted click true"
+  },
+  {
+    "id": "b",
+    "sentence": "search laptops under ₹50,000 on Flipkart",
+    "result": "PASS (COMPLETED)",
+    "ms": 3965,
+    "evidence": "evidence/batch-b-live-b.png",
+    "note": "20/29 items kept, ₹15990–₹48990"
+  },
+  {
+    "id": "c1",
+    "sentence": "open the cheapest one",
+    "result": "PASS (COMPLETED)",
+    "ms": 2238,
+    "evidence": "evidence/batch-b-live-c1.png",
+    "note": "product page /lenovo-100e-chromebook-gen-4-mediatek-kompanio-520-4-gb-32-; cheapest listed ₹15990; price on page matches"
+  },
+  {
+    "id": "c2",
+    "sentence": "go back",
+    "result": "PASS (COMPLETED)",
+    "ms": 1956,
+    "evidence": "evidence/batch-b-live-c2.png",
+    "note": "back on the results page"
+  },
+  {
+    "id": "c3",
+    "sentence": "scroll down",
+    "result": "PASS (COMPLETED)",
+    "ms": 300,
+    "evidence": "evidence/batch-b-live-c3.png",
+    "note": "scrollY 576 in the agent's tab"
+  },
+  {
+    "id": "d1",
+    "sentence": "search iPhone 15 on Amazon",
+    "result": "PASS (COMPLETED)",
+    "ms": 8787,
+    "evidence": "evidence/batch-b-live-d1.png",
+    "note": "output none"
+  },
+  {
+    "id": "d2",
+    "sentence": "open the cheapest one",
+    "result": "FAIL (HUMAN_REQUIRED)",
+    "ms": 35,
+    "evidence": "evidence/batch-b-live-d2.png",
+    "note": "\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m | Open the cheapest item: No prices are shown on this page, so the cheapest item cannot be chosen."
   }
 ]
