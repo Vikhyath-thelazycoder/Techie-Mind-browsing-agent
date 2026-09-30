@@ -14,6 +14,7 @@ import {
   RecoveryDecision,
   SanitizedObservation,
   Skill,
+  Target,
   Task,
   toJsonSchemas,
 } from '../src/index.js';
@@ -294,5 +295,23 @@ describe('boundedWebUrl', () => {
     const bounded = boundedWebUrl(long);
     expect(bounded).toBe('https://www.amazon.in/ap/signin');
     expect(Observation.shape.url.safeParse(bounded).success).toBe(true);
+  });
+});
+
+// Live on the Mac: "summarize this page" failed on a page whose host is not a public domain.
+describe('Target host', () => {
+  const target = (domain: string, reason: string) =>
+    Target.safeParse({ domain, url: `http://${domain}/page`, adapterId: null, reason }).success;
+
+  it('accepts a local host or IP address for the tab that is already open', () => {
+    for (const host of ['localhost', '127.0.0.1', '192.168.1.20', 'intranet', '[::1]'])
+      expect(target(host, 'current-tab'), host).toBe(true);
+    expect(target('en.wikipedia.org', 'current-tab')).toBe(true);
+  });
+
+  it('still requires a real domain for a site the agent navigates to', () => {
+    expect(target('localhost', 'explicit-site')).toBe(false);
+    expect(target('192.168.1.20', 'resolved-website')).toBe(false);
+    expect(target('youtube.com', 'explicit-site')).toBe(true);
   });
 });

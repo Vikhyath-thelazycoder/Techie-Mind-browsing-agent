@@ -65,6 +65,18 @@ export const Domain = z
     'must be a lowercase hostname',
   );
 
+/**
+ * Host of a page the user already has open: a Domain, or a local one — "localhost", a one-word
+ * intranet name, an IPv4 address or a bracketed IPv6 address. Only for working in the open tab.
+ */
+export const PageHost = z
+  .string()
+  .max(253)
+  .regex(
+    /^(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*|\[[0-9a-f:.]{2,45}\])$/,
+    'must be a lowercase page host',
+  );
+
 export const RiskLevel = z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
 export type RiskLevel = z.infer<typeof RiskLevel>;
 

@@ -139,6 +139,17 @@ describe('Phase 5 — forms from the encrypted profile', () => {
 });
 
 describe('Phase 5 — summaries', () => {
+  // Live on the Mac: failed with "must be a lowercase hostname" on a page that is not on a public domain.
+  it.each(['http://localhost:3000', 'http://192.168.1.20', 'http://intranet'])(
+    'summarizes a page served from %s',
+    async (origin) => {
+      const site = shop('/news', undefined, {}, origin);
+      const { result } = await run(site, 'summarize this page');
+      expect(result.status).toBe('COMPLETED');
+      expect(result.output).toMatchObject({ kind: 'text' });
+    },
+  );
+
   it('without a model: an extractive summary from the page itself, personal data redacted', async () => {
     const site = shop('/news');
     const { result } = await run(site, 'summarize this page');

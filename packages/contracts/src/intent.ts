@@ -5,6 +5,7 @@ import {
   Domain,
   Id,
   Language,
+  PageHost,
   RiskLevel,
   Timestamp,
   WebUrl,
@@ -104,17 +105,24 @@ export const Intent = z.strictObject({
 export type Intent = z.infer<typeof Intent>;
 
 /** Where the target router decided to go (spec §9). */
-export const Target = z.strictObject({
-  domain: Domain,
-  url: WebUrl,
-  adapterId: Id.nullable(),
-  reason: z.enum([
-    'explicit-site',
-    'current-tab',
-    'resolved-website',
-    'generic-search',
-    'search-discovery',
-    'research',
-  ]),
-});
+export const Target = z
+  .strictObject({
+    domain: PageHost,
+    url: WebUrl,
+    adapterId: Id.nullable(),
+    reason: z.enum([
+      'explicit-site',
+      'current-tab',
+      'resolved-website',
+      'generic-search',
+      'search-discovery',
+      'research',
+    ]),
+  })
+  // A site the agent navigates to must be a real domain; a local host or IP address is only
+  // accepted for the tab the user already has open.
+  .refine((t) => t.reason === 'current-tab' || Domain.safeParse(t.domain).success, {
+    path: ['domain'],
+    message: 'must be a lowercase hostname',
+  });
 export type Target = z.infer<typeof Target>;

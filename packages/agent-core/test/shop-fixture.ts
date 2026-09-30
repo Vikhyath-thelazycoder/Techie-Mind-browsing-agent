@@ -261,9 +261,10 @@ export function shop(
   start = '/search?q=laptops',
   profile: UserProfile | null = PROFILE,
   options = {},
+  origin = 'https://shop.fixture.test',
 ) {
   return new WorkflowSite(
-    'https://shop.fixture.test',
+    origin,
     {
       '/': { title: 'Shop', searchField: 'q', nodes: header },
       '/search': results,
